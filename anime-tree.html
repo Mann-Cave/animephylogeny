@@ -1,0 +1,2090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AnimePhylogeny — 3D Tree of Life</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&display=swap');
+:root{
+  --bg:#06060c;--surface:#0e0e18;--surface2:#161622;--surface3:#1e1e2c;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#eae8f4;--muted:#7878900;--muted:#787890;--muted2:#50505f;
+  --accent:#c9a84c;--accent2:#7b6fcf;--accent3:#2ac9a8;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg)}
+body{font-family:'Inter',sans-serif;font-size:13px;color:var(--text);
+  display:flex;flex-direction:column}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px;border-bottom:1px solid var(--border);
+  background:rgba(6,6,12,.96);backdrop-filter:blur(16px);
+  z-index:200;flex-shrink:0;gap:12px;position:relative}
+.logo{font-family:'Cinzel',serif;font-size:17px;letter-spacing:.1em;
+  color:var(--accent);cursor:pointer;white-space:nowrap;flex-shrink:0}
+.logo sup{font-size:8px;color:var(--muted);font-family:'Inter',sans-serif;letter-spacing:.04em}
+.stat-bar{display:flex;gap:0;align-items:center;flex-shrink:0}
+.stat{font-size:10px;color:var(--muted);padding:0 9px;border-right:1px solid var(--border)}
+.stat:last-child{border:none}
+.stat strong{color:var(--text);font-weight:500}
+.hctrls{display:flex;align-items:center;gap:7px;flex:1;justify-content:flex-end}
+.btn{background:transparent;border:1px solid var(--border2);color:var(--muted);
+  padding:5px 13px;border-radius:6px;cursor:pointer;font-size:11px;
+  font-family:'Inter',sans-serif;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--surface2);color:var(--text);border-color:rgba(255,255,255,.2)}
+.btn.on{background:var(--accent2);border-color:var(--accent2);color:#fff}
+.btn.gold{background:rgba(201,168,76,.1);border-color:rgba(201,168,76,.3);color:var(--accent)}
+.btn.gold:hover{background:rgba(201,168,76,.2)}
+input[type=text],input[type=search]{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:5px 11px;border-radius:6px;font-size:11px;font-family:'Inter',sans-serif;
+  outline:none;transition:border-color .15s}
+input:focus{border-color:var(--accent2)}
+select{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:5px 9px;border-radius:6px;font-size:11px;font-family:'Inter',sans-serif;outline:none}
+
+/* MAIN */
+.main{display:flex;flex:1;overflow:hidden;position:relative}
+
+/* 3D CANVAS */
+#c3d{position:absolute;inset:0;display:block}
+#overlay{position:absolute;inset:0;pointer-events:none}
+
+/* CONTROLS HINT */
+.hint{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);
+  display:flex;gap:12px;pointer-events:none;opacity:.5}
+.hint-item{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;
+  background:rgba(6,6,12,.7);border:1px solid var(--border);border-radius:5px;padding:4px 9px}
+
+/* SIDEBAR */
+.sidebar{position:absolute;left:0;top:0;bottom:0;width:220px;z-index:100;
+  background:rgba(14,14,24,.93);border-right:1px solid var(--border);
+  backdrop-filter:blur(12px);overflow-y:auto;display:flex;flex-direction:column;
+  transition:transform .3s}
+.sidebar.gone{transform:translateX(-100%)}
+#sb-btn{position:absolute;z-index:101;top:50%;transform:translateY(-50%);
+  left:220px;background:rgba(14,14,24,.93);border:1px solid var(--border2);
+  border-left:none;width:11px;height:36px;border-radius:0 5px 5px 0;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:9px;transition:all .3s;backdrop-filter:blur(12px)}
+#sb-btn:hover{color:var(--text)}
+#sb-btn.gone{left:0}
+.sec{padding:12px 13px 0;border-bottom:1px solid var(--border)}
+.sec:last-child{border:none;padding-bottom:13px}
+.sec-t{font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted2);margin-bottom:9px;font-weight:600}
+.era-list{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.era-row{display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px 7px;
+  border-radius:5px;transition:background .1s;border:1px solid transparent}
+.era-row:hover{background:var(--surface2)}
+.era-row.on{background:var(--surface3);border-color:var(--border2)}
+.era-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.era-nm{font-size:11px;color:var(--muted);flex:1}
+.era-ct{font-size:9px;color:var(--muted2)}
+.gpills{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+.gpill{font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid var(--border);
+  color:var(--muted2);cursor:pointer;transition:all .15s;background:transparent;font-family:'Inter',sans-serif}
+.gpill:hover{border-color:var(--accent);color:var(--accent)}
+.gpill.on{background:var(--accent);border-color:var(--accent);color:#000;font-weight:500}
+.profile-box{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.tog-row{display:flex;align-items:center;gap:7px;margin-bottom:7px;cursor:pointer}
+.tog{width:26px;height:14px;background:var(--surface3);border:1px solid var(--border2);
+  border-radius:7px;position:relative;transition:background .2s;flex-shrink:0}
+.tog.on{background:var(--accent2);border-color:var(--accent2)}
+.tog-k{width:8px;height:8px;background:#fff;border-radius:50%;position:absolute;
+  top:2px;left:2px;transition:transform .2s}
+.tog.on .tog-k{transform:translateX(12px)}
+.tog-lbl{font-size:11px;color:var(--muted);user-select:none}
+
+/* DETAIL PANEL */
+.panel{position:absolute;right:0;top:0;bottom:0;width:290px;z-index:100;
+  background:rgba(14,14,24,.95);border-left:1px solid var(--border);
+  backdrop-filter:blur(12px);display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);overflow:hidden}
+.panel.open{transform:translateX(0)}
+.pclose{position:absolute;top:11px;right:11px;z-index:10;background:var(--surface2);
+  border:1px solid var(--border);color:var(--muted);width:22px;height:22px;
+  border-radius:4px;cursor:pointer;font-size:12px;display:flex;align-items:center;
+  justify-content:center;transition:all .15s}
+.pclose:hover{color:var(--text)}
+.pscroll{flex:1;overflow-y:auto;padding-bottom:20px}
+.phero{padding:16px 16px 13px;border-bottom:1px solid var(--border);position:relative;
+  background:linear-gradient(180deg,rgba(255,255,255,.02) 0%,transparent 100%)}
+.pera{display:inline-block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  padding:2px 7px;border-radius:9px;margin-bottom:7px;font-weight:600}
+.ptitle{font-family:'Cinzel',serif;font-size:15px;color:var(--text);
+  line-height:1.35;margin-bottom:4px}
+.pmeta{font-size:10px;color:var(--muted);line-height:1.6}
+.pscore{display:none;align-items:center;gap:4px;margin-top:5px;
+  font-size:10px;color:var(--accent)}
+.pbody{padding:13px 16px;display:flex;flex-direction:column;gap:14px}
+.psec{font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted2);margin-bottom:7px;font-weight:600}
+.pdesc{font-size:11px;color:rgba(234,232,244,.7);line-height:1.75}
+.mut-card{background:var(--surface2);border:1px solid var(--border);border-radius:7px;
+  padding:10px;font-size:11px;color:rgba(234,232,244,.62);line-height:1.65}
+.mut-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--accent);margin-bottom:3px;font-weight:600}
+.tchips{display:flex;flex-wrap:wrap;gap:4px}
+.tchip{font-size:10px;padding:2px 7px;border-radius:9px;
+  border:1px solid var(--border2);color:var(--muted)}
+.recs{display:flex;flex-direction:column;gap:6px}
+.rec{background:var(--surface2);border:1px solid var(--border);border-radius:7px;
+  padding:8px 10px;transition:all .15s;display:flex;align-items:flex-start;
+  gap:8px;text-decoration:none;color:inherit}
+.rec:hover{border-color:var(--border2);background:var(--surface3)}
+.rdot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.rinfo{flex:1;min-width:0}
+.rtitle{font-size:11px;font-weight:500;color:var(--text);margin-bottom:1px}
+.rwhy{font-size:10px;color:var(--muted);line-height:1.45}
+.rtype{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);margin-top:2px}
+.rytag{font-size:9px;color:var(--muted2);background:var(--bg);border:1px solid var(--border);
+  border-radius:3px;padding:1px 5px;flex-shrink:0}
+.livecard{background:var(--surface3);border:1px solid rgba(42,201,168,.2);
+  border-radius:7px;padding:10px;display:flex;flex-direction:column;gap:5px}
+.lrow{display:flex;justify-content:space-between;font-size:10px}
+.llbl{color:var(--muted)}.lval{color:var(--text);font-weight:500}
+.lspin{display:inline-block;width:10px;height:10px;border:1.5px solid var(--border);
+  border-top-color:var(--accent3);border-radius:50%;animation:spin .7s linear infinite;
+  margin-right:5px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.poster-wrap{width:100%;aspect-ratio:2/3;border-radius:7px;overflow:hidden;
+  background:var(--surface3);margin-bottom:2px;position:relative}
+.poster-wrap img{width:100%;height:100%;object-fit:cover;display:block;
+  transition:opacity .3s}
+.poster-wrap img.loading{opacity:0}
+.poster-wrap img.loaded{opacity:1}
+.poster-placeholder{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-size:10px;color:var(--muted2)}
+.elinks{display:flex;flex-direction:column;gap:5px}
+.elink{display:flex;align-items:center;gap:7px;padding:7px 10px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  text-decoration:none;color:var(--muted);font-size:11px;transition:all .15s}
+.elink:hover{border-color:var(--border2);color:var(--text)}
+
+/* TOOLTIP */
+#tt{position:fixed;background:rgba(14,14,24,.97);border:1px solid rgba(255,255,255,.1);
+  border-radius:8px;padding:9px 12px;pointer-events:none;z-index:500;max-width:200px;
+  backdrop-filter:blur(12px);opacity:0;transition:opacity .12s}
+#tt.on{opacity:1}
+.tt1{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px}
+.tt2{font-size:10px;color:var(--accent)}
+.tt3{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5}
+
+/* API badge */
+.api-badge{display:inline-flex;align-items:center;gap:5px;
+  background:rgba(42,201,168,.08);border:1px solid rgba(42,201,168,.22);
+  border-radius:10px;padding:2px 8px;font-size:10px;color:var(--accent3)}
+.api-dot{width:5px;height:5px;border-radius:50%;background:var(--accent3);
+  animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* SEARCH */
+.search-wrap{position:relative}
+.sr-drop{position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--surface);border:1px solid var(--border2);border-radius:8px;
+  max-height:260px;overflow-y:auto;z-index:400;display:none;
+  box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.sr-drop.open{display:block}
+.sr-item{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:9px;transition:background .1s}
+.sr-item:last-child{border:none}
+.sr-item:hover{background:var(--surface2)}
+.sr-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sr-nm{font-size:11px;color:var(--text)}
+.sr-meta{font-size:9px;color:var(--muted);margin-top:1px}
+
+/* HYBRID MODAL */
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;
+  display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.mbg.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:11px;
+  padding:22px;max-width:380px;width:92%;position:relative}
+.modal h2{font-family:'Cinzel',serif;font-size:15px;color:var(--accent);margin-bottom:6px}
+.modal p{font-size:11px;color:var(--muted);line-height:1.65;margin-bottom:13px}
+.mclose{position:absolute;top:13px;right:13px;background:transparent;
+  border:none;color:var(--muted);font-size:15px;cursor:pointer}
+.hbox{background:var(--surface2);border:1px solid rgba(123,111,207,.3);
+  border-radius:7px;padding:12px;margin-bottom:11px}
+.htitle{font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px}
+.hdesc{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:9px}
+.hlinks{display:flex;flex-direction:column;gap:4px}
+.hlink{font-size:11px;color:var(--accent2);text-decoration:none;padding:5px 9px;
+  background:var(--bg);border-radius:5px;border:1px solid var(--border);transition:all .15s}
+.hlink:hover{border-color:var(--accent2);background:rgba(123,111,207,.1)}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:1000;gap:14px;transition:opacity .8s}
+#loading.out{opacity:0;pointer-events:none}
+.ld-t{font-family:'Cinzel',serif;font-size:26px;letter-spacing:.1em;color:var(--accent)}
+.ld-s{font-size:11px;color:var(--muted);letter-spacing:.06em}
+.ld-bars{display:flex;gap:5px;align-items:flex-end;height:34px}
+.ld-b{width:3px;border-radius:2px;animation:ldb .9s ease-in-out infinite alternate}
+@keyframes ldb{from{height:6px;opacity:.3}to{height:34px;opacity:1}}
+.ld-track{width:190px;height:2px;background:var(--surface3);border-radius:1px;overflow:hidden}
+.ld-fill{height:100%;background:var(--accent);border-radius:1px;width:0;transition:width .4s}
+.ld-msg{font-size:10px;color:var(--muted2);min-height:14px;text-align:center}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="ld-t">AnimePhylogeny</div>
+  <div class="ld-s">3D Tree of Life</div>
+  <div class="ld-bars" id="ld-bars"></div>
+  <div class="ld-track"><div class="ld-fill" id="ld-fill"></div></div>
+  <div class="ld-msg" id="ld-msg">Initializing…</div>
+</div>
+
+<header>
+  <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+    <div class="logo" onclick="resetView()">AnimePhylogeny<sup>3D</sup></div>
+    <div class="api-badge"><div class="api-dot" id="api-dot"></div><span id="api-txt">Connecting…</span></div>
+  </div>
+  <div class="stat-bar">
+    <div class="stat"><strong id="st-n">—</strong> series</div>
+    <div class="stat"><strong>13</strong> clades</div>
+    <div class="stat"><strong>7</strong> eras</div>
+  </div>
+  <div class="hctrls">
+    <div class="search-wrap">
+      <input type="search" id="srch" placeholder="Search anime…" style="width:150px"
+        oninput="onSearch(this.value)" autocomplete="off">
+      <div class="sr-drop" id="sr"></div>
+    </div>
+    <button class="btn" id="lbl-btn" onclick="toggleLabels()">Labels On</button>
+    <button class="btn" id="lost-btn" onclick="toggleLost()">Lost Branches</button>
+    <button class="btn gold" onclick="openHybrid()">✦ Hybrid Sim</button>
+    <button class="btn" onclick="openExport()">↓ Export</button>
+    <button class="btn" onclick="resetView()">↺ Reset View</button>
+  </div>
+</header>
+
+<div class="main" id="main">
+  <!-- 3D canvas fills this -->
+  <canvas id="c3d"></canvas>
+
+  <!-- Sidebar -->
+  <button id="sb-btn" onclick="toggleSidebar()">‹</button>
+  <div class="sidebar" id="sidebar">
+    <div class="sec">
+      <div class="sec-t">Era</div>
+      <div class="era-list" id="era-list"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">Genre Filter</div>
+      <div class="gpills" id="gpills"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">MAL Profile <span style="color:var(--accent3);font-size:8px">LIVE</span></div>
+      <div class="profile-box">
+        <input type="text" id="mal-in" placeholder="MAL username" style="width:100%">
+        <button class="btn" style="width:100%;background:rgba(123,111,207,.15);border-color:rgba(123,111,207,.4);color:var(--accent2)"
+          onclick="loadMAL()">↗ Load & Highlight Profile</button>
+        <div id="mal-msg" style="font-size:10px;color:var(--muted);min-height:13px;text-align:center"></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">Quick Personalize</div>
+      <div class="profile-box">
+        <input type="text" id="fav-in" placeholder="Fav series, comma-separated" style="width:100%">
+        <button class="btn" style="width:100%" onclick="applyFavs()">✦ Highlight My Lineage</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">Controls</div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.8;margin-bottom:12px">
+        <div>🖱 Drag — rotate</div>
+        <div>⚙ Scroll — zoom</div>
+        <div>⇧ Right-drag — pan</div>
+        <div>🖱 Click node — inspect</div>
+      </div>
+      <label class="tog-row" onclick="toggleAutoRotate()">
+        <div class="tog on" id="ar-tog"><div class="tog-k"></div></div>
+        <span class="tog-lbl">Auto-rotate</span>
+      </label>
+    </div>
+    <div class="sec">
+      <div class="sec-t">About</div>
+      <p style="font-size:10px;color:var(--muted);line-height:1.7;padding-bottom:12px">
+        Branch thickness = influence. Click any node to explore its clade.
+        Live data via <strong style="color:var(--text)">Jikan API</strong>.
+      </p>
+    </div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="panel" id="panel">
+    <button class="pclose" onclick="closePanel()">✕</button>
+    <div class="pscroll">
+      <div class="phero">
+        <div class="pera" id="pera">—</div>
+        <div class="ptitle" id="ptitle">—</div>
+        <div class="pmeta" id="pmeta">—</div>
+        <div class="pscore" id="pscore"></div>
+      </div>
+      <div class="pbody" id="pbody"></div>
+    </div>
+  </div>
+
+  <!-- Tooltip -->
+  <div id="tt">
+    <div class="tt1" id="tt1"></div>
+    <div class="tt2" id="tt2"></div>
+    <div class="tt3" id="tt3"></div>
+  </div>
+
+  <!-- Controls hint -->
+  <div class="hint">
+    <div class="hint-item">drag · rotate</div>
+    <div class="hint-item">scroll · zoom</div>
+    <div class="hint-item">click node · inspect</div>
+  </div>
+</div>
+
+<!-- Hybrid modal -->
+<div class="mbg" id="hmodal">
+  <div class="modal">
+    <button class="mclose" onclick="closeHybrid()">✕</button>
+    <h2>⊕ Hybrid Offspring Simulator</h2>
+    <p>Splice two genre bloodlines and discover real anime at their intersection.</p>
+    <div style="display:flex;gap:9px;margin-bottom:11px;align-items:center">
+      <select id="ha" style="flex:1"></select>
+      <span style="color:var(--accent);font-size:15px;font-weight:bold">×</span>
+      <select id="hb" style="flex:1"></select>
+    </div>
+    <button class="btn" style="width:100%;margin-bottom:13px;background:rgba(123,111,207,.18);
+      border-color:rgba(123,111,207,.5);color:#fff" onclick="computeHybrid()">Generate Offspring</button>
+    <div id="hout"></div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="mbg" id="export-modal">
+  <div class="modal" style="max-width:420px">
+    <button class="mclose" onclick="closeExport()">✕</button>
+    <h2>↓ Export Tree</h2>
+    <p>Capture the current view as a PNG. The overlay includes the title, era legend, and series count.</p>
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      <!-- Mode -->
+      <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-bottom:2px">Mode</div>
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:8px 10px;
+        background:var(--surface2);border:1px solid var(--border);border-radius:7px;transition:border-color .15s"
+        id="mode-full-lbl">
+        <input type="radio" name="exp-mode" value="full" checked onchange="updateExportPreview()"
+          style="accent-color:var(--accent2)">
+        <div>
+          <div style="font-size:11px;font-weight:500;color:var(--text)">Full tree</div>
+          <div style="font-size:10px;color:var(--muted)">Current camera view, all visible nodes</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:8px 10px;
+        background:var(--surface2);border:1px solid var(--border);border-radius:7px;transition:border-color .15s"
+        id="mode-hl-lbl">
+        <input type="radio" name="exp-mode" value="highlight" onchange="updateExportPreview()"
+          style="accent-color:var(--accent2)">
+        <div>
+          <div style="font-size:11px;font-weight:500;color:var(--text)">My lineage</div>
+          <div style="font-size:10px;color:var(--muted)">Highlights your personalized path, dims the rest</div>
+        </div>
+      </label>
+
+      <!-- Resolution -->
+      <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-top:6px;margin-bottom:2px">Resolution</div>
+      <div style="display:flex;gap:7px">
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+          padding:7px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--muted)">
+          <input type="radio" name="exp-res" value="1" checked style="accent-color:var(--accent2)"> 1× screen
+        </label>
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+          padding:7px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--muted)">
+          <input type="radio" name="exp-res" value="2" style="accent-color:var(--accent2)"> 2× hi-res
+        </label>
+      </div>
+
+      <!-- Overlay toggle -->
+      <label style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;
+        background:var(--surface2);border:1px solid var(--border);border-radius:7px;cursor:pointer;margin-top:2px">
+        <span style="font-size:11px;color:var(--text)">Include info overlay</span>
+        <input type="checkbox" id="exp-overlay" checked style="accent-color:var(--accent2)">
+      </label>
+    </div>
+
+    <!-- Status -->
+    <div id="exp-status" style="font-size:10px;color:var(--muted);min-height:14px;text-align:center;margin-bottom:10px"></div>
+
+    <button class="btn" id="exp-btn"
+      style="width:100%;background:rgba(201,168,76,.15);border-color:rgba(201,168,76,.4);color:var(--accent);font-size:12px;padding:9px"
+      onclick="doExport()">↓ Download PNG</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════
+// 1. DATA
+// ═══════════════════════════════════════════════════════════
+const JIKAN = 'https://api.jikan.moe/v4';
+
+const ERA_CFG = [
+  {e:'1960s',c:'#c94a2a',y:1960},{e:'1970s',c:'#c9882a',y:1970},
+  {e:'1980s',c:'#8ec92a',y:1980},{e:'1990s',c:'#2ac9a8',y:1990},
+  {e:'2000s',c:'#2a7bc9',y:2000},{e:'2010s',c:'#7b2ac9',y:2010},
+  {e:'2020s',c:'#c92a8a',y:2020}
+];
+const EMAP={};ERA_CFG.forEach(e=>EMAP[e.e]=e.c);
+function eraOf(y){if(typeof y==='string')return y;return Math.floor(y/10)*10+'s';}
+function eraCol(y){return EMAP[eraOf(y)]||'#545468';}
+
+const TREE = {
+  name:"Tezuka Foundation",year:"1960s",type:"root",
+  desc:"The primordial ancestor. Osamu Tezuka borrowed from Disney and reinvented animation as a serialised narrative medium with genuine emotional depth.",
+  color:"#c94a2a",influence:1,mal_id:null,
+  mutation:"Cinematic storyboarding, character continuity, emotional complexity — applied to animation for the first time.",
+  children:[
+
+    // ── SHONEN ACTION ──────────────────────────────────────
+    {name:"Shonen Action",year:"1960s",type:"branch",color:"#c9882a",influence:.95,lost:false,
+     desc:"The dominant bloodline. Hot-blooded protagonists, exponential power growth, the nakama bond.",
+     mutation:"Dragon Ball's Saiyan arc (1989) formalises limitless power escalation as genre grammar.",
+     genres:["Action","Shonen","Fighting"],children:[
+      {name:"Astro Boy",year:1963,type:"series",color:"#c94a2a",mal_id:1568,studio:"Mushi Pro",genres:["Sci-Fi","Robot"],desc:"The first franchise. A robot boy with a human heart — Tezuka's thesis on empathy."},
+      {name:"Speed Racer",year:1967,type:"series",color:"#c94a2a",mal_id:527,studio:"Tatsunoko",genres:["Action","Racing"],desc:"High-octane racing drama. First anime to crack the Western mainstream."},
+      {name:"Fist of the North Star",year:1984,type:"series",color:"#c9882a",mal_id:1663,studio:"Toei",genres:["Action","Post-Apocalyptic"],desc:"Post-nuclear martial arts. Heads explode. Shonen maximalism before the word existed."},
+      {name:"Saint Seiya",year:1986,type:"series",color:"#c9882a",mal_id:1254,studio:"Toei",genres:["Action","Mythology"],desc:"Armored warriors channeling cosmic energy. Greek mythology through shonen eyes."},
+      {name:"Battle Shonen",year:"1980s",type:"branch",color:"#8ec92a",influence:.9,lost:false,
+       desc:"Ki and chakra power systems formalise fighting. Rivals pushing each other beyond limits.",
+       mutation:"Dragon Ball's escalation — every villain must be stronger than the last.",
+       genres:["Action","Shonen","Martial Arts"],children:[
+        {name:"Dragon Ball Z",year:1989,type:"series",color:"#8ec92a",mal_id:813,studio:"Toei",genres:["Action","Martial Arts"],desc:"The power-scaling bible. Every battle anime owes a direct debt."},
+        {name:"Yu Yu Hakusho",year:1992,type:"series",color:"#2ac9a8",mal_id:392,studio:"Pierrot",genres:["Action","Supernatural"],desc:"Ghost detective. Tournament format perfected. The Soul Society prototype."},
+        {name:"Bleach",year:2004,type:"series",color:"#2a7bc9",mal_id:269,studio:"Pierrot",genres:["Action","Supernatural"],desc:"Soul reapers and hollows. Ichigo's bankai defined 2000s anime aesthetics."},
+        {name:"One Piece",year:1999,type:"series",color:"#2a7bc9",mal_id:21,studio:"Toei",genres:["Action","Adventure"],desc:"The highest-selling manga. Luffy's grand voyage across 1000+ episodes of world-building."},
+        {name:"Naruto",year:2002,type:"series",color:"#2a7bc9",mal_id:20,studio:"Pierrot",genres:["Action","Ninja"],desc:"The orphan ninja who never gives up. Defined a generation's childhood mythology."},
+        {name:"Fullmetal Alchemist: Brotherhood",year:2009,type:"series",color:"#2a7bc9",mal_id:5114,studio:"Bones",genres:["Action","Fantasy","Drama"],desc:"The gold standard. Alchemy, grief, and a complete story told with perfect craft."},
+        {name:"Hunter x Hunter",year:2011,type:"series",color:"#7b2ac9",mal_id:11061,studio:"Madhouse",genres:["Action","Adventure"],desc:"The thinking person's shonen. Nen system is the most elegant power logic in anime."},
+        {name:"Black Clover",year:2017,type:"series",color:"#7b2ac9",mal_id:34572,studio:"Pierrot",genres:["Action","Magic"],desc:"Pure shonen maximalism. Asta screams his way to the top. Unironically excellent late-run."},
+        {name:"Modern Shonen",year:"2010s",type:"branch",color:"#7b2ac9",influence:.88,lost:false,
+         desc:"Deconstruction, moral brutality, earned catharsis. Post-EVA emotional complexity.",
+         mutation:"Attack on Titan (2013) — genocide as plot device; hope never guaranteed.",
+         genres:["Action","Dark"],children:[
+          {name:"Attack on Titan",year:2013,type:"series",color:"#7b2ac9",mal_id:16498,studio:"WIT/MAPPA",genres:["Action","Dark Fantasy","Military"],desc:"Humanity caged. The titan as metaphor for historic trauma. A shattering finale."},
+          {name:"My Hero Academia",year:2016,type:"series",color:"#7b2ac9",mal_id:31964,studio:"Bones",genres:["Action","Superheroes"],desc:"Silver Age Marvel filtered through shonen DNA. A love letter to costumed heroism."},
+          {name:"Demon Slayer",year:2019,type:"series",color:"#c92a8a",mal_id:38000,studio:"ufotable",genres:["Action","Historical"],desc:"Grief-driven swordsmanship with cinema-grade animation. ufotable set a new visual ceiling."},
+          {name:"Jujutsu Kaisen",year:2020,type:"series",color:"#c92a8a",mal_id:40748,studio:"MAPPA",genres:["Action","Supernatural"],desc:"Cursed energy combat. Defined early-2020s anime discourse."},
+          {name:"Chainsaw Man",year:2022,type:"series",color:"#c92a8a",mal_id:44511,studio:"MAPPA",genres:["Action","Dark"],desc:"Genre nihilism as philosophy. Food and affection as survival."},
+          {name:"Vinland Saga",year:2019,type:"series",color:"#c92a8a",mal_id:37521,studio:"WIT",genres:["Action","Historical","Drama"],desc:"Viking revenge story that becomes a pacifist treatise. Thorfinn's arc is one of anime's best."},
+          {name:"Dungeon Meshi",year:2024,type:"series",color:"#c92a8a",mal_id:52701,studio:"Trigger",genres:["Action","Fantasy","Comedy"],desc:"Eating dungeon monsters to survive. Studio Trigger's warmest, most inventive series."}
+        ]}
+      ]}
+    ]},
+
+    // ── MECHA ──────────────────────────────────────────────
+    {name:"Mecha",year:"1970s",type:"branch",color:"#c9882a",influence:.88,lost:false,
+     desc:"Giant robots as cultural mirrors of post-war Japan — industrial guilt, national trauma, youth bearing impossible burdens.",
+     mutation:"Super Robot → Real Robot paradigm (Gundam 1979): war has no heroes, only survivors.",
+     genres:["Mecha","Sci-Fi","Military"],children:[
+      {name:"Mazinger Z",year:1972,type:"series",color:"#c9882a",mal_id:3151,studio:"Toei",genres:["Mecha","Super Robot"],desc:"The original super robot. Piloted from inside. Every giant-robot trope starts here."},
+      {name:"Space Battleship Yamato",year:1974,type:"series",color:"#c9882a",mal_id:1650,studio:"Academi",genres:["Sci-Fi","Military"],desc:"The first serious space epic. Serialised stakes and actual deaths. A genre revolution."},
+      {name:"Mobile Suit Gundam",year:1979,type:"series",color:"#8ec92a",mal_id:80,studio:"Sunrise",genres:["Mecha","Military"],desc:"War is attrition. Soldiers are children. The Real Robot revolution."},
+      {name:"Macross",year:1982,type:"series",color:"#8ec92a",mal_id:1088,studio:"Tatsunoko",genres:["Mecha","Romance","Music"],desc:"Love triangles and singing idols defeating alien invasions. Music as weapon."},
+      {name:"Zeta Gundam",year:1985,type:"series",color:"#8ec92a",mal_id:85,studio:"Sunrise",genres:["Mecha","Military","Drama"],desc:"Kamille Bidan's tragedy. The darkest chapter in the Universal Century. Brutal and essential."},
+      {name:"Code Geass",year:2006,type:"series",color:"#2a7bc9",mal_id:1575,studio:"Sunrise",genres:["Mecha","Psychological","Military"],desc:"Chess-master protagonist and mechs. Lelouch's final gambit is anime's most debated ending."},
+      {name:"Eureka Seven",year:2005,type:"series",color:"#2a7bc9",mal_id:237,studio:"Bones",genres:["Mecha","Romance","Sci-Fi"],desc:"Surfing mechs and coming-of-age love. Bones at their most lyrical and optimistic."},
+      {name:"Psy. Mecha",year:"1990s",type:"branch",color:"#2ac9a8",influence:.92,lost:false,
+       desc:"The pilot's fractured mind as true battlefield. Robots as exosuits for trauma.",
+       mutation:"Neon Genesis Evangelion (1995) — the genre's psychoanalytic deconstruction.",
+       genres:["Mecha","Psychological"],children:[
+        {name:"Neon Genesis Evangelion",year:1995,type:"series",color:"#2ac9a8",mal_id:30,studio:"Gainax",genres:["Mecha","Psychological"],desc:"The Anno earthquake. Giant robots as therapy sessions. Permanently altered what anime could say."},
+        {name:"RahXephon",year:2002,type:"series",color:"#2a7bc9",mal_id:534,studio:"Bones",genres:["Mecha","Psychological"],desc:"EVA's philosophical twin — amnesia, music, gods reshaping reality."},
+        {name:"Gurren Lagann",year:2007,type:"series",color:"#2a7bc9",mal_id:2056,studio:"Gainax",genres:["Mecha","Action"],desc:"The optimist's answer to Evangelion. Who the hell do you think I am?"},
+        {name:"Aldnoah.Zero",year:2014,type:"series",color:"#7b2ac9",mal_id:22729,studio:"A-1/TROYCA",genres:["Mecha","Military"],desc:"Mars vs Earth mecha war. Hard-SF logic: Earth mechs win through tactics not power."},
+        {name:"Darling in the FranXX",year:2018,type:"series",color:"#7b2ac9",mal_id:35849,studio:"Trigger",genres:["Mecha","Romance"],desc:"Evangelion's heir in ambition and tragic overreach. Pair-piloted mechas and teen anguish."},
+        {name:"86 Eighty-Six",year:2021,type:"series",color:"#c92a8a",mal_id:41457,studio:"A-1 Pictures",genres:["Mecha","Military","Drama"],desc:"Racism codified into mecha assignments. The most painfully literary war drama in recent anime."}
+      ]}
+    ]},
+
+    // ── CYBERPUNK / SCI-FI ─────────────────────────────────
+    {name:"Cyberpunk",year:"1980s",type:"branch",color:"#8ec92a",influence:.80,lost:false,
+     desc:"Neon dystopias, body-modded hackers — Japan's anxious meditation on its own technological ascent.",
+     mutation:"Ghost in the Shell (1995): if consciousness can be digitized, what is the soul?",
+     genres:["Cyberpunk","Sci-Fi"],children:[
+      {name:"Akira",year:1988,type:"series",color:"#8ec92a",mal_id:47,studio:"TMS",genres:["Cyberpunk","Action"],desc:"The film that proved anime was high art. Neo-Tokyo 2019. Psychic terror and societal collapse."},
+      {name:"Ghost in the Shell",year:1995,type:"series",color:"#2ac9a8",mal_id:43,studio:"Prod. I.G",genres:["Cyberpunk","Philosophical"],desc:"What makes us human if our mind can be hacked? Cinema's quiet obsession made visible."},
+      {name:"Serial Experiments Lain",year:1998,type:"series",color:"#2ac9a8",mal_id:339,studio:"Triangle Staff",genres:["Cyberpunk","Psychological"],desc:"Identity dissolving into the network. Pre-internet internet horror. Deeply essential."},
+      {name:"Cowboy Bebop",year:1998,type:"series",color:"#2ac9a8",mal_id:1,studio:"Sunrise",genres:["Sci-Fi","Jazz"],desc:"Jazz, grief, existential freedom. The coolest 26 episodes ever broadcast."},
+      {name:"Trigun",year:1998,type:"series",color:"#2ac9a8",mal_id:6,studio:"Madhouse",genres:["Sci-Fi","Western"],desc:"Pacifism as radical ideology on a desert planet. Humor hiding devastation."},
+      {name:"Ergo Proxy",year:2006,type:"series",color:"#2a7bc9",mal_id:790,studio:"Manglobe",genres:["Cyberpunk","Philosophical"],desc:"Post-apocalypse philosophy noir. Proxies, domes, and the question of what counts as alive."},
+      {name:"Texhnolyze",year:2003,type:"series",color:"#2a7bc9",mal_id:537,studio:"Madhouse",genres:["Cyberpunk","Dark"],desc:"Body-modification dystopia. Haibane Renmei director's darkest work. Uncompromising."},
+      {name:"Psycho-Pass",year:2012,type:"series",color:"#7b2ac9",mal_id:13601,studio:"Prod. I.G",genres:["Cyberpunk","Thriller"],desc:"Dystopian crime-coefficient society. Orwell meets Gibson in anime form."},
+      {name:"Vivy: Fluorite Eye's Song",year:2021,type:"series",color:"#c92a8a",mal_id:46095,studio:"WIT",genres:["Sci-Fi","Music"],desc:"AI songstress prevents the robot uprising through music. Original anime gem."},
+      {name:"Trigun Stampede",year:2023,type:"series",color:"#c92a8a",mal_id:52034,studio:"Orange",genres:["Sci-Fi","Western"],desc:"The classic reborn in stunning 3D. Trauma and pacifism reexamined for a new generation."}
+    ]},
+
+    // ── GHIBLI / ECO-FANTASY ───────────────────────────────
+    {name:"Ghibli Clade",year:"1980s",type:"branch",color:"#2ac9a8",influence:.93,lost:false,
+     desc:"Miyazaki's eco-spiritual humanism — nature as divine, children as vessels of wonder, no true villains.",
+     mutation:"My Neighbor Totoro (1988): domestic grief and forest spirits — childhood as truth, not escapism.",
+     genres:["Fantasy","Adventure","Ecological"],children:[
+      {name:"Nausicaä",year:1984,type:"series",color:"#8ec92a",mal_id:116,studio:"Topcraft",genres:["Fantasy","Ecology"],desc:"The ur-Ghibli. Post-apocalyptic ecology before the studio existed."},
+      {name:"Castle in the Sky",year:1986,type:"series",color:"#8ec92a",mal_id:2576,studio:"Ghibli",genres:["Fantasy","Adventure"],desc:"The Ghibli formula crystallised: airships, ruins, wonder, and children who act."},
+      {name:"My Neighbor Totoro",year:1988,type:"series",color:"#8ec92a",mal_id:523,studio:"Ghibli",genres:["Fantasy","Children"],desc:"Forest spirits and childhood grief, perfect and untouched."},
+      {name:"Kiki's Delivery Service",year:1989,type:"series",color:"#8ec92a",mal_id:989,studio:"Ghibli",genres:["Fantasy","Slice-of-Life"],desc:"A young witch's independence. Work, creativity, and the anxiety of growing up."},
+      {name:"Only Yesterday",year:1991,type:"series",color:"#8ec92a",mal_id:988,studio:"Ghibli",genres:["Drama","Slice-of-Life"],desc:"Isao Takahata's quietly devastating memory film. Adulthood interrogating childhood."},
+      {name:"Porco Rosso",year:1992,type:"series",color:"#8ec92a",mal_id:400,studio:"Ghibli",genres:["Fantasy","Adventure"],desc:"A cursed WWI ace who became a pig. Miyazaki's most self-portrait work."},
+      {name:"Pom Poko",year:1994,type:"series",color:"#2ac9a8",mal_id:572,studio:"Ghibli",genres:["Fantasy","Ecology"],desc:"Tanuki fighting suburban development. Takahata's weirdest, most political Ghibli."},
+      {name:"Princess Mononoke",year:1997,type:"series",color:"#2ac9a8",mal_id:164,studio:"Ghibli",genres:["Fantasy","Historical","Ecology"],desc:"Industry vs. nature, zero easy villains. The most morally complex Miyazaki."},
+      {name:"Spirited Away",year:2001,type:"series",color:"#2a7bc9",mal_id:199,studio:"Ghibli",genres:["Fantasy","Spiritual"],desc:"A capitalism allegory as fairy tale. Oscar-winning. The highest-grossing anime film."},
+      {name:"The Cat Returns",year:2002,type:"series",color:"#2a7bc9",mal_id:5557,studio:"Ghibli",genres:["Fantasy","Comedy"],desc:"A girl drawn into the Cat Kingdom. Ghibli's lightest, most playful feature."},
+      {name:"Howl's Moving Castle",year:2004,type:"series",color:"#2a7bc9",mal_id:431,studio:"Ghibli",genres:["Fantasy","Romance"],desc:"Anti-war romance in a steampunk alternate Europe. Sophie and Howl endure."},
+      {name:"The Wind Rises",year:2013,type:"series",color:"#7b2ac9",mal_id:16662,studio:"Ghibli",genres:["Historical","Drama"],desc:"A aeronautical engineer's life in wartime Japan. Miyazaki's elegiac farewell to flight."},
+      {name:"Wolf Children",year:2012,type:"series",color:"#7b2ac9",mal_id:13245,studio:"Madhouse",genres:["Fantasy","Drama"],desc:"The Ghibli heir. Motherhood, belonging, and letting go. Not Ghibli — but should be."},
+      {name:"The Boy and the Heron",year:2023,type:"series",color:"#c92a8a",mal_id:49470,studio:"Ghibli",genres:["Fantasy","Drama"],desc:"Miyazaki's return. Grief, the creative act, and the world after the creator leaves."}
+    ]},
+
+    // ── PSYCHOLOGICAL / THRILLER ───────────────────────────
+    {name:"Psychological",year:"1990s",type:"branch",color:"#2a7bc9",influence:.82,lost:false,
+     desc:"Anime's dark mirror — unreliable narrators, fractured psyches, moral vertigo.",
+     mutation:"Satoshi Kon's reality-dissolution technique (Perfect Blue 1997) — the screen lies.",
+     genres:["Psychological","Thriller","Horror"],children:[
+      {name:"Perfect Blue",year:1997,type:"series",color:"#2ac9a8",mal_id:433,studio:"Madhouse",genres:["Psychological","Horror"],desc:"Satoshi Kon's masterwork. Celebrity, stalking, identity horror. Aronofsky bought the rights."},
+      {name:"Paranoia Agent",year:2004,type:"series",color:"#2a7bc9",mal_id:323,studio:"Madhouse",genres:["Psychological","Mystery"],desc:"Satoshi Kon's TV masterpiece. Modern anxiety given physical form as a roller-blading attacker."},
+      {name:"Monster",year:2004,type:"series",color:"#2a7bc9",mal_id:19,studio:"Madhouse",genres:["Psychological","Crime"],desc:"74 episodes of pure crime thriller. Urasawa's narrative architecture at its most devastating."},
+      {name:"Death Note",year:2006,type:"series",color:"#2a7bc9",mal_id:1535,studio:"Madhouse",genres:["Psychological","Thriller"],desc:"Justice as hubris. The cat-and-mouse that made anime mainstream worldwide."},
+      {name:"Haibane Renmei",year:2002,type:"series",color:"#2a7bc9",mal_id:393,studio:"Radix",genres:["Psychological","Fantasy"],desc:"Angel-winged beings in a walled town, slowly remembering who they were. Pure, quiet grief."},
+      {name:"Puella Magi Madoka Magica",year:2011,type:"series",color:"#7b2ac9",mal_id:9756,studio:"Shaft",genres:["Magical Girl","Psychological","Dark"],desc:"The magical girl deconstruction. Urobutcher's subversion is now as canonical as the trope itself."},
+      {name:"Steins;Gate",year:2011,type:"series",color:"#7b2ac9",mal_id:9253,studio:"White Fox",genres:["Sci-Fi","Psychological"],desc:"Time-travel grief dressed as mad-scientist comedy. The convergence is inevitable and destroying."},
+      {name:"From the New World",year:2012,type:"series",color:"#7b2ac9",mal_id:14017,studio:"A-1 Pictures",genres:["Psychological","Sci-Fi","Horror"],desc:"A utopia concealing mass murder. Psychic children in a post-collapse society. Deeply unsettling."},
+      {name:"Made in Abyss",year:2017,type:"series",color:"#7b2ac9",mal_id:34599,studio:"Kinema Citrus",genres:["Dark Fantasy","Horror"],desc:"Childlike art hiding brutal body-horror existential dread. The descent is literal and metaphorical."},
+      {name:"Odd Taxi",year:2021,type:"series",color:"#c92a8a",mal_id:46102,studio:"OLM/DLE",genres:["Mystery","Psychological"],desc:"A walrus taxi driver entangled in a disappearance. The most elegantly plotted anime of 2021."},
+      {name:"Frieren",year:2023,type:"series",color:"#c92a8a",mal_id:52991,studio:"Madhouse",genres:["Fantasy","Grief"],desc:"An elf mage who outlives all her companions. A masterwork about grief across centuries."}
+    ]},
+
+    // ── SLICE OF LIFE / ROMANCE ────────────────────────────
+    {name:"Slice of Life",year:"1990s",type:"branch",color:"#2ac9a8",influence:.75,lost:false,
+     desc:"The quiet revolution — ordinary moments as profound drama. Emotions earned over hundreds of episodes.",
+     mutation:"KyoAni's emotional realism engine (Clannad 2007) — photorealistic tears in mundane settings.",
+     genres:["Slice-of-Life","Romance","Drama"],children:[
+      {name:"Maison Ikkoku",year:1986,type:"series",color:"#8ec92a",mal_id:1474,studio:"Kitty Films",genres:["Romance","Slice-of-Life"],desc:"Rumiko Takahashi's slow-burn masterpiece. 96 episodes of quiet, aching longing."},
+      {name:"Fruits Basket",year:2001,type:"series",color:"#2a7bc9",mal_id:569,studio:"Studio Deen",genres:["Romance","Drama","Supernatural"],desc:"A girl living with a cursed family. The 2019 remake is the definitive emotional gut-punch."},
+      {name:"Nana",year:2006,type:"series",color:"#2a7bc9",mal_id:877,studio:"Madhouse",genres:["Romance","Drama","Music"],desc:"Two Nanas, one apartment. The sadness of adult friendship, ambition, and love colliding."},
+      {name:"Clannad: After Story",year:2008,type:"series",color:"#2a7bc9",mal_id:4181,studio:"KyoAni",genres:["Drama","Romance"],desc:"The grief machine. KyoAni's ultimate weapon. The finale redefines the entire show."},
+      {name:"Anohana",year:2011,type:"series",color:"#7b2ac9",mal_id:9989,studio:"A-1 Pictures",genres:["Drama","Supernatural"],desc:"A ghost who only her childhood friend can see. 11 episodes of relentless, earned tearwork."},
+      {name:"Hyouka",year:2012,type:"series",color:"#7b2ac9",mal_id:12189,studio:"KyoAni",genres:["Mystery","Slice-of-Life"],desc:"High school mysteries solved by a boy who conserves energy. Exquisite KyoAni craft."},
+      {name:"Your Lie in April",year:2014,type:"series",color:"#7b2ac9",mal_id:23273,studio:"A-1 Pictures",genres:["Music","Romance"],desc:"Music as emotional language when words fail. Kaori's final performance haunts."},
+      {name:"A Silent Voice",year:2016,type:"series",color:"#7b2ac9",mal_id:28851,studio:"KyoAni",genres:["Drama","Romance"],desc:"Bullying, disability, redemption. Naoko Yamada's film is about learning to hear again."},
+      {name:"March Comes in Like a Lion",year:2016,type:"series",color:"#7b2ac9",mal_id:31646,studio:"Shaft",genres:["Drama","Slice-of-Life"],desc:"A teenage shogi prodigy coping with depression. Shaft's most human, warmest work."},
+      {name:"Violet Evergarden",year:2018,type:"series",color:"#7b2ac9",mal_id:33352,studio:"KyoAni",genres:["Drama","Slice-of-Life"],desc:"A weapon learning what love means by writing letters for others. KyoAni at maximum beauty."},
+      {name:"Oregairu",year:2013,type:"series",color:"#7b2ac9",mal_id:14813,studio:"Brain's Base",genres:["Romance","Slice-of-Life"],desc:"Anti-social service club. The most psychologically honest high-school romance in anime."},
+      {name:"Skip and Loafer",year:2023,type:"series",color:"#c92a8a",mal_id:52832,studio:"P.A. Works",genres:["Romance","Slice-of-Life"],desc:"A rural girl in Tokyo navigating high school with relentless warmth. A modern SoL gem."}
+    ]},
+
+    // ── ISEKAI ──────────────────────────────────────────────
+    {name:"Isekai",year:"2000s",type:"branch",color:"#2a7bc9",influence:.78,lost:false,
+     desc:"The escapist mega-genre — ordinary protagonist ejected into fantasy. Born from literature, codified by gaming.",
+     mutation:"Sword Art Online (2012) — VRMMO frame triggers the modern isekai tsunami.",
+     genres:["Isekai","Fantasy","Adventure"],children:[
+      {name:"Inuyasha",year:2000,type:"series",color:"#2a7bc9",mal_id:249,studio:"Sunrise",genres:["Isekai","Historical"],desc:"The proto-isekai. Feudal Japan portal romance. The original time-slip power fantasy."},
+      {name:".hack//SIGN",year:2002,type:"series",color:"#2a7bc9",mal_id:48,studio:"Bee Train",genres:["Isekai","MMORPG"],desc:"Pre-SAO MMORPG anime. A player trapped in the game. Slow, contemplative, foundational."},
+      {name:"Sword Art Online",year:2012,type:"series",color:"#7b2ac9",mal_id:11757,studio:"A-1 Pictures",genres:["Isekai","Action"],desc:"The SAO effect. Controversial, genre-defining, responsible for a thousand imitators."},
+      {name:"No Game No Life",year:2014,type:"series",color:"#7b2ac9",mal_id:19815,studio:"Madhouse",genres:["Isekai","Fantasy"],desc:"Sibling NEETs become gods in a world resolved by games. Visual maximalism at its peak."},
+      {name:"Overlord",year:2015,type:"series",color:"#7b2ac9",mal_id:29803,studio:"Madhouse",genres:["Isekai","Dark"],desc:"The villain isekai. An undead wizard who may be the most powerful being alive."},
+      {name:"Re:Zero",year:2016,type:"series",color:"#7b2ac9",mal_id:31240,studio:"White Fox",genres:["Isekai","Psychological"],desc:"Death loops, clinical depression, growth that costs everything. The deconstruction isekai."},
+      {name:"Slime Reincarnation",year:2018,type:"series",color:"#c92a8a",mal_id:37430,studio:"8bit",genres:["Isekai","Fantasy"],desc:"Cozy nation-building isekai. The optimistic pole of the spectrum."},
+      {name:"Konosuba",year:2016,type:"series",color:"#c92a8a",mal_id:30831,studio:"Deen",genres:["Isekai","Comedy"],desc:"The isekai comedy. Useless goddess, explosion-obsessed mage, masochist knight. Pure joy."},
+      {name:"Mushoku Tensei",year:2021,type:"series",color:"#c92a8a",mal_id:39535,studio:"Bind",genres:["Isekai","Fantasy"],desc:"The isekai renaissance. High-budget world-building, flawed protagonist, genuine consequences."},
+      {name:"Frieren",year:2023,type:"series",color:"#c92a8a",mal_id:52991,studio:"Madhouse",genres:["Isekai","Fantasy"],desc:"Post-adventure isekai grief. The party already won; now what?"}
+    ]},
+
+    // ── SPORTS ──────────────────────────────────────────────
+    {name:"Sports",year:"1970s",type:"branch",color:"#c9882a",influence:.72,lost:false,
+     desc:"Human potential through competition — the body as philosophical instrument, rivals as mirrors of the self.",
+     mutation:"Haikyuu!! (2014) applies psychological interior depth to team-sport drama at unprecedented scale.",
+     genres:["Sports","Drama"],children:[
+      {name:"Ashita no Joe",year:1970,type:"series",color:"#c9882a",mal_id:967,studio:"Mushi Pro",genres:["Sports","Drama"],desc:"Boxing tragedy. The working-class hero. Arguably the greatest sports narrative in anime.",lost:true},
+      {name:"Captain Tsubasa",year:1983,type:"series",color:"#8ec92a",mal_id:642,studio:"Tsuchida",genres:["Sports","Shonen"],desc:"The anime that made Europeans take up football. Real professionals still cite it."},
+      {name:"Slam Dunk",year:1993,type:"series",color:"#2ac9a8",mal_id:1710,studio:"Toei",genres:["Sports","Comedy"],desc:"Basketball that drove real sport participation in Japan. The 2022 film is perfect."},
+      {name:"Hajime no Ippo",year:2000,type:"series",color:"#2a7bc9",mal_id:263,studio:"Madhouse",genres:["Sports","Boxing"],desc:"The boxing bible. Technical, emotional, endlessly rewatchable."},
+      {name:"Kuroko no Basket",year:2012,type:"series",color:"#2a7bc9",mal_id:11771,studio:"Production I.G",genres:["Sports","Action"],desc:"Superpowered basketball. The Generation of Miracles makes every game feel like a boss fight."},
+      {name:"Yowamushi Pedal",year:2013,type:"series",color:"#7b2ac9",mal_id:18247,studio:"TMS",genres:["Sports","Comedy"],desc:"A nerdy otaku who happens to be an astonishing cyclist. Climbs as metaphor for passion."},
+      {name:"Ping Pong",year:2014,type:"series",color:"#7b2ac9",mal_id:20517,studio:"Tatsunoko",genres:["Sports","Psychological"],desc:"Masaaki Yuasa's masterwork. Table tennis as philosophy of self-identity. Visually singular."},
+      {name:"Haikyuu!!",year:2014,type:"series",color:"#7b2ac9",mal_id:20583,studio:"Prod. I.G",genres:["Sports","Drama"],desc:"Volleyball as philosophy. Four seasons of the greatest sports anime ever made."},
+      {name:"Run with the Wind",year:2018,type:"series",color:"#c92a8a",mal_id:37965,studio:"Production I.G",genres:["Sports","Drama"],desc:"Ten students training for the Hakone Ekiden relay. Quietly devastating. Adult sports anime."},
+      {name:"Blue Lock",year:2022,type:"series",color:"#c92a8a",mal_id:49596,studio:"8bit",genres:["Sports","Psychological"],desc:"Football as ego warfare. The brutally anti-team-sports sports show."}
+    ]},
+
+    // ── MAGICAL GIRL ───────────────────────────────────────
+    {name:"Magical Girl",year:"1960s",type:"branch",color:"#c92a8a",influence:.76,lost:false,
+     desc:"Girls granted transformative powers — the genre that encoded female agency into children's animation before feminism had the vocabulary for it.",
+     mutation:"Sailor Moon (1992) fuses magical girl with sentai team structure, creating the template for every magical-girl property that followed.",
+     genres:["Magical Girl","Fantasy","Action"],children:[
+      {name:"Sally the Witch",year:1966,type:"series",color:"#c94a2a",mal_id:2550,studio:"Toei",genres:["Magical Girl","Children"],desc:"The ur-magical girl. A witch princess living among humans. Tezuka and Toei's original template."},
+      {name:"Cutey Honey",year:1973,type:"series",color:"#c9882a",mal_id:2551,studio:"Toei",genres:["Magical Girl","Action"],desc:"Go Nagai's android warrior with transformation powers. The action-magical-girl prototype."},
+      {name:"Sailor Moon",year:1992,type:"series",color:"#2ac9a8",mal_id:530,studio:"Toei",genres:["Magical Girl","Romance","Action"],desc:"The definitive magical girl franchise. Usagi Tsukino's team defined a global generation."},
+      {name:"Cardcaptor Sakura",year:1998,type:"series",color:"#2ac9a8",mal_id:232,studio:"Madhouse",genres:["Magical Girl","Adventure"],desc:"CLAMP's masterpiece of gentle magic. Capturing cards, processing emotions, pure warmth."},
+      {name:"Magic Knight Rayearth",year:1994,type:"series",color:"#2ac9a8",mal_id:233,studio:"TMS",genres:["Magical Girl","Mecha","Isekai"],desc:"CLAMP's girls-plus-mechs isekai. The genre fusion before fusion was fashionable."},
+      {name:"Puella Magi Madoka Magica",year:2011,type:"series",color:"#7b2ac9",mal_id:9756,studio:"Shaft",genres:["Magical Girl","Psychological","Dark"],desc:"The deconstruction that became as canonical as the trope it subverted. Hope costs everything."},
+      {name:"Precure",year:2004,type:"series",color:"#2a7bc9",mal_id:575,studio:"Toei",genres:["Magical Girl","Action"],desc:"The franchise that never ended. 20 seasons of girls punching monsters with increasing ferocity."},
+      {name:"Lycoris Recoil",year:2022,type:"series",color:"#c92a8a",mal_id:50348,studio:"A-1 Pictures",genres:["Magical Girl","Action","Sci-Fi"],desc:"Girls-with-guns action-comedy. Chisato and Takina's chemistry is one of anime's best recent duos."}
+    ]},
+
+    // ── HISTORICAL / SAMURAI ───────────────────────────────
+    {name:"Historical",year:"1990s",type:"branch",color:"#c9882a",influence:.70,lost:false,
+     desc:"Japan's past as canvas — swordfights, feudal politics, the weight of honour and death.",
+     mutation:"Rurouni Kenshin (1996) humanises the killer-turned-pacifist, creating the redemption arc template.",
+     genres:["Historical","Samurai","Action"],children:[
+      {name:"Rose of Versailles",year:1979,type:"series",color:"#c9882a",mal_id:2408,studio:"TMS",genres:["Historical","Drama","Romance"],desc:"The French Revolution through a cross-dressing officer. Riyoko Ikeda's masterwork. Foundational josei."},
+      {name:"Rurouni Kenshin",year:1996,type:"series",color:"#2ac9a8",mal_id:45,studio:"Gallop/Deen",genres:["Historical","Action","Drama"],desc:"The legendary swordsman who swore never to kill. Meiji-era redemption arc at its finest."},
+      {name:"Samurai Champloo",year:2004,type:"series",color:"#2a7bc9",mal_id:205,studio:"Manglobe",genres:["Historical","Action","Hip-Hop"],desc:"Edo-era Japan with hip-hop editing. Watanabe's anachronistic style perfected."},
+      {name:"Sword of the Stranger",year:2007,type:"series",color:"#2a7bc9",mal_id:2418,studio:"Bones",genres:["Historical","Action"],desc:"A nameless swordsman protecting a boy from Chinese assassins. The finest animated sword fights."},
+      {name:"Dororo",year:2019,type:"series",color:"#c92a8a",mal_id:38414,studio:"MAPPA/Tezuka",genres:["Historical","Dark Fantasy","Action"],desc:"A boy born with no body parts reclaims them by slaying demons. Tezuka's dark classic remade."},
+      {name:"Vinland Saga",year:2019,type:"series",color:"#c92a8a",mal_id:37521,studio:"WIT",genres:["Historical","Action","Drama"],desc:"Viking revenge becoming a pacifist philosophy. Thorfinn's arc across seasons is one of anime's best."},
+      {name:"The Tale of Princess Kaguya",year:2013,type:"series",color:"#7b2ac9",mal_id:19083,studio:"Ghibli",genres:["Historical","Drama","Fantasy"],desc:"Takahata's ink-wash masterpiece. An ancient folk tale rendered in moving watercolour. Heartbreaking."}
+    ]},
+
+    // ── JOSEI / SEINEN LITERARY ────────────────────────────
+    {name:"Seinen Literary",year:"1990s",type:"branch",color:"#7b2ac9",influence:.73,lost:false,
+     desc:"Adult manga adaptations that prioritised emotional complexity, moral ambiguity, and literary craft over spectacle.",
+     mutation:"Monster (2004) proved that 74-episode slow-burn crime drama could rival any prestige TV.",
+     genres:["Seinen","Drama","Literary"],children:[
+      {name:"Berserk",year:1997,type:"series",color:"#2ac9a8",mal_id:33,studio:"OLM",genres:["Dark Fantasy","Action","Psychological"],desc:"Guts and Griffith. The original dark fantasy. The Eclipse is anime's most traumatic sequence."},
+      {name:"Legend of Galactic Heroes",year:1988,type:"series",color:"#8ec92a",mal_id:820,studio:"Artland",genres:["Sci-Fi","Military","Political"],desc:"110-episode space opera about democracy vs autocracy. The most intellectually ambitious anime."},
+      {name:"Planetes",year:2003,type:"series",color:"#2a7bc9",mal_id:329,studio:"Sunrise",genres:["Sci-Fi","Drama","Slice-of-Life"],desc:"Garbage collectors in space. Hard-SF workplace drama about human ambition. Criminally underseen."},
+      {name:"Monster",year:2004,type:"series",color:"#2a7bc9",mal_id:19,studio:"Madhouse",genres:["Psychological","Crime"],desc:"74 episodes of pure crime thriller. Urasawa's narrative architecture at its most devastating."},
+      {name:"Mushishi",year:2005,type:"series",color:"#2a7bc9",mal_id:457,studio:"Artland",genres:["Fantasy","Supernatural","Slice-of-Life"],desc:"Episodic folklore of spirit-like beings. The pinnacle of quiet, contemplative anime. Singular."},
+      {name:"20th Century Boys",year:2008,type:"series",color:"#2a7bc9",mal_id:6586,studio:"Madhouse",genres:["Mystery","Thriller"],desc:"A childhood symbol becomes a cult sign. Urasawa's most ambitious manga. Live-action trilogy essential."},
+      {name:"Spice and Wolf",year:2008,type:"series",color:"#2a7bc9",mal_id:2966,studio:"Imagin",genres:["Fantasy","Economics","Romance"],desc:"A merchant and a wolf-deity traverse a medieval economy. Dialogue-driven romantic economics."},
+      {name:"Natsume's Book of Friends",year:2008,type:"series",color:"#2a7bc9",mal_id:4081,studio:"Brain's Base",genres:["Supernatural","Slice-of-Life"],desc:"A boy who can see spirits returns their names. Six seasons of quiet, accumulative warmth."},
+      {name:"March Comes in Like a Lion",year:2016,type:"series",color:"#7b2ac9",mal_id:31646,studio:"Shaft",genres:["Drama","Sports","Slice-of-Life"],desc:"A teenage shogi prodigy navigating depression. Shaft's most human and warmest work."},
+      {name:"Vagabond",year:2002,type:"series",color:"#2a7bc9",mal_id:null,studio:"—",genres:["Historical","Seinen"],desc:"Manga-only: Takehiko Inoue's Musashi adaptation. Widely considered among the finest manga ever drawn."}
+    ]},
+
+    // ── HORROR ─────────────────────────────────────────────
+    {name:"Horror",year:"1990s",type:"branch",color:"#c94a2a",influence:.65,lost:false,
+     desc:"The genre anime rarely admits to loving — body horror, existential dread, the uncanny made flesh.",
+     mutation:"Junji Ito's spiral logic (Uzumaki 2022) — horror as geometry, as pattern, as inevitability.",
+     genres:["Horror","Dark","Psychological"],children:[
+      {name:"Vampire Hunter D",year:1985,type:"series",color:"#c9882a",mal_id:1239,studio:"Ashi Pro",genres:["Horror","Action"],desc:"A half-vampire dhampir hunter in a post-nuclear far future. Gothic horror on a cosmic scale."},
+      {name:"Wicked City",year:1987,type:"series",color:"#c9882a",mal_id:null,studio:"Madhouse",genres:["Horror","Action"],desc:"A secret war between humans and demons. Yoshiaki Kawajiri's dark grotesque peak. Adults only."},
+      {name:"Hellsing Ultimate",year:2006,type:"series",color:"#2a7bc9",mal_id:777,studio:"Madhouse/Satelight",genres:["Horror","Action","Dark"],desc:"Alucard eradicates Nazis with horrifying violence. Hirano's gonzo horror opera at full volume."},
+      {name:"Shiki",year:2010,type:"series",color:"#7b2ac9",mal_id:7724,studio:"Daume",genres:["Horror","Mystery"],desc:"Vampires quietly taking a village. Starts as mystery, ends in moral collapse on both sides."},
+      {name:"Parasyte",year:2014,type:"series",color:"#7b2ac9",mal_id:22535,studio:"Madhouse",genres:["Horror","Sci-Fi","Action"],desc:"Alien parasites replace human heads. A teenage boy and his parasite hand become allies."},
+      {name:"The Promised Neverland",year:2019,type:"series",color:"#c92a8a",mal_id:37779,studio:"CloverWorks",genres:["Horror","Thriller"],desc:"Orphans who discover they are livestock. Season 1 is a perfect 12-episode escape thriller."},
+      {name:"Uzumaki",year:2022,type:"series",color:"#c92a8a",mal_id:44095,studio:"Production I.G",genres:["Horror","Psychological"],desc:"Junji Ito's spiral horror in black-and-white anime form. The geometry of dread made animate."}
+    ]},
+
+    // ── LOST BRANCHES (OVA ERA) ────────────────────────────
+    {name:"Lost Branches",year:"1980s",type:"branch",color:"#454558",influence:.55,lost:true,
+     desc:"The forgotten golden age of direct-to-video OVAs — before streaming, before sequel safety-nets. Studios took risks.",
+     mutation:"45-minute OVA format enables narrative experiments impossible in weekly TV schedules.",
+     genres:["OVA","Sci-Fi","Action"],children:[
+      {name:"Vampire Hunter D: Bloodlust",year:2000,type:"series",color:"#454558",mal_id:805,studio:"Madhouse",genres:["Horror","Action"],desc:"The superior sequel. Gothic horror road movie. Yoshiaki Kawajiri's finest work.",lost:true},
+      {name:"Bubblegum Crisis",year:1987,type:"series",color:"#454558",mal_id:851,studio:"Artmic",genres:["Cyberpunk","Action"],desc:"8-episode OVA. Female biker-suit vigilantes in a Blade Runner city. Defined 80s cool.",lost:true},
+      {name:"Gunbuster",year:1988,type:"series",color:"#454558",mal_id:2871,studio:"Gainax",genres:["Mecha","Sci-Fi"],desc:"Gainax OVA. Giant robots, tennis, relativistic time dilation, and genuine devastation.",lost:true},
+      {name:"Megazone 23",year:1985,type:"series",color:"#454558",mal_id:885,studio:"Artland",genres:["Sci-Fi","Cyberpunk"],desc:"Simulated city, holographic idol, pre-Matrix consciousness themes in 1985.",lost:true},
+      {name:"Wings of Honnêamise",year:1987,type:"series",color:"#454558",mal_id:1194,studio:"Gainax",genres:["Sci-Fi","Drama"],desc:"A space program in an alternate world. Astonishing animation for 1987.",lost:true},
+      {name:"Patlabor OVA",year:1988,type:"series",color:"#454558",mal_id:null,studio:"Sunrise",genres:["Mecha","Comedy"],desc:"Giant police robots filing paperwork. Labour rights meets mecha absurdism.",lost:true},
+      {name:"Macross: Do You Remember Love",year:1984,type:"series",color:"#454558",mal_id:2131,studio:"Tatsunoko",genres:["Mecha","Romance","Music"],desc:"The greatest mecha film. Music defeats alien invasion. Animation quality unreached for years.",lost:true},
+      {name:"Legend of Galactic Heroes",year:1988,type:"series",color:"#454558",mal_id:820,studio:"Artland",genres:["Sci-Fi","Military"],desc:"110-episode political space opera on laserdisc. The most ambitious anime ever attempted.",lost:true},
+      {name:"Devilman: Crybaby",year:2018,type:"series",color:"#454558",mal_id:35608,studio:"Science SARU",genres:["Horror","Action","Dark"],desc:"Masaaki Yuasa's Netflix revival of Go Nagai's original. Brutally faithful to the apocalyptic spirit.",lost:true},
+      {name:"FLCL",year:2000,type:"series",color:"#454558",mal_id:227,studio:"Gainax",genres:["Sci-Fi","Comedy","Coming-of-Age"],desc:"6 episodes of puberty as alien robot attack. The densest anime per-minute ever made.",lost:true},
+      {name:"Diebuster",year:2004,type:"series",color:"#454558",mal_id:247,studio:"Gainax",genres:["Mecha","Sci-Fi"],desc:"Gunbuster's sequel set 12,000 years later. Gainax's most visually inventive OVA.",lost:true},
+      {name:"Kizumonogatari",year:2016,type:"series",color:"#454558",mal_id:9260,studio:"Shaft",genres:["Supernatural","Action"],desc:"Araragi's vampire origin story. Three films of pure Shaft visual poetry and Nishio Ishin wit.",lost:true}
+    ]}
+  ]
+};
+
+// ═══════════════════════════════════════════════════════════
+// 2. STATE
+// ═══════════════════════════════════════════════════════════
+let showLost = false;
+let showLabels = true;
+let autoRotate = true;
+let activeGenres = new Set();
+let highlight = new Set();
+let liveData = {};
+let apiOk = false;
+
+// ═══════════════════════════════════════════════════════════
+// 3. JIKAN API
+// ═══════════════════════════════════════════════════════════
+const Q=[]; let busy=false;
+async function jget(path){
+  return new Promise((res,rej)=>{Q.push({path,res,rej});if(!busy)drain();});
+}
+async function drain(){
+  if(!Q.length){busy=false;return;}busy=true;
+  const {path,res,rej}=Q.shift();
+  try{
+    const r=await fetch(JIKAN+path);
+    if(!r.ok) throw new Error(String(r.status));
+    res(await r.json());
+  }
+  catch(e){rej(e);}
+  setTimeout(drain,360);
+}
+async function enrich(id){
+  if(!id||liveData[id])return;
+  try{const d=await jget('/anime/'+id);if(d.data)liveData[id]=d.data;}
+  catch(e){throw e;} // propagate so loadLive can inspect the status
+}
+async function testAPI(){
+  try{const d=await jget('/anime/30');if(d.data){apiOk=true;
+    document.getElementById('api-txt').textContent='Jikan API Live';return true;}}
+  catch(e){}
+  document.getElementById('api-txt').textContent='Cached mode';
+  document.getElementById('api-dot').style.background='#c94a2a';
+  return false;
+}
+async function loadMAL(){
+  const u=document.getElementById('mal-in').value.trim();if(!u)return;
+  const msg=document.getElementById('mal-msg');msg.textContent='Loading…';
+  try{
+    const d=await jget('/users/'+u+'/full');if(!d.data)throw Error();
+    const fd=await jget('/users/'+u+'/favorites');
+    highlight.clear();
+    if(fd.data?.anime){
+      const fids=new Set(fd.data.anime.map(a=>a.mal_id));
+      function wh(n){if(n.mal_id&&fids.has(n.mal_id))highlight.add(n.name);if(n.children)n.children.forEach(wh);}
+      wh(TREE);
+    }
+    msg.textContent='✓ Highlighted '+highlight.size+' favorites';
+    rebuildTree();
+  }catch(e){msg.textContent='Not found or API error';}
+}
+function applyFavs(){
+  const val=document.getElementById('fav-in').value;
+  highlight.clear();
+  val.split(',').map(s=>s.trim()).filter(Boolean).forEach(f=>{
+    function w(n){if((n.name||'').toLowerCase().includes(f.toLowerCase()))highlight.add(n.name);
+      if(n.children)n.children.forEach(w);}
+    w(TREE);
+  });
+  rebuildTree();
+}
+
+// ═══════════════════════════════════════════════════════════
+// 4. THREE.JS SCENE SETUP
+// ═══════════════════════════════════════════════════════════
+let renderer, scene, camera;
+let nodeObjects = [];   // {mesh, data, labelSprite}
+let branchObjects = []; // {mesh, data}
+let raycaster, mouse;
+let hoveredObj = null;
+
+// Orbit state — framed to see a vertical oak tree
+// target Y=13 (mid-trunk), radius=60, phi=PI/2.4 (slightly above horizon)
+const orbit = {
+  enabled: true,
+  spherical: { theta: 0.4, phi: Math.PI / 2.4, radius: 62 },
+  target: new THREE.Vector3(0, 13, 0),
+  dragging: false,
+  panning: false,
+  lastX: 0, lastY: 0,
+  mouseButton: -1
+};
+
+function initThree() {
+  const canvas = document.getElementById('c3d');
+  const container = document.getElementById('main');
+
+  renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: false,
+    preserveDrawingBuffer: true   // required for PNG export via toDataURL
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.shadowMap.enabled = false;
+  renderer.setClearColor(0x06060c, 1);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x06060c, 0.012);
+
+  camera = new THREE.PerspectiveCamera(
+    55,
+    container.clientWidth / container.clientHeight,
+    0.1,
+    400
+  );
+  updateCameraFromSpherical();
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+  scene.add(ambient);
+
+  const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
+  sun.position.set(15, 30, 20);
+  scene.add(sun);
+
+  const fill = new THREE.DirectionalLight(0xaabbff, 0.4);
+  fill.position.set(-20, 10, -15);
+  scene.add(fill);
+
+  // Coloured point lights — positioned to wash the trunk and canopy
+  const ptColors    = [0xc94a2a, 0x2ac9a8, 0x7b6fcf, 0xc9a84c];
+  const ptPositions = [
+    new THREE.Vector3(-12, 6,  -8),
+    new THREE.Vector3( 12, 14,  10),
+    new THREE.Vector3( -8, 22,  6),
+    new THREE.Vector3(  6, 10, -14)
+  ];
+  ptColors.forEach((col, i) => {
+    const pt = new THREE.PointLight(col, 0.6, 30);
+    pt.position.copy(ptPositions[i]);
+    scene.add(pt);
+  });
+
+  // Stars
+  buildStars();
+
+  raycaster = new THREE.Raycaster();
+  raycaster.params.Points = { threshold: 0.3 };
+  mouse = new THREE.Vector2(-99, -99);
+
+  setupOrbitEvents(canvas, container);
+  window.addEventListener('resize', onResize);
+}
+
+function updateCameraFromSpherical() {
+  const { theta, phi, radius } = orbit.spherical;
+  const sinPhi = Math.sin(phi);
+  camera.position.set(
+    orbit.target.x + radius * sinPhi * Math.sin(theta),
+    orbit.target.y + radius * Math.cos(phi),
+    orbit.target.z + radius * sinPhi * Math.cos(theta)
+  );
+  camera.lookAt(orbit.target);
+}
+
+function buildStars() {
+  const geo = new THREE.BufferGeometry();
+  const verts = [];
+  for (let i = 0; i < 1800; i++) {
+    const r = 120 + Math.random() * 80;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    verts.push(
+      r * Math.sin(phi) * Math.cos(theta),
+      r * Math.sin(phi) * Math.sin(theta),
+      r * Math.cos(phi)
+    );
+  }
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.22, sizeAttenuation: true, transparent: true, opacity: 0.65 });
+  scene.add(new THREE.Points(geo, mat));
+}
+
+function onResize() {
+  const c = document.getElementById('main');
+  renderer.setSize(c.clientWidth, c.clientHeight);
+  camera.aspect = c.clientWidth / c.clientHeight;
+  camera.updateProjectionMatrix();
+}
+
+// ═══════════════════════════════════════════════════════════
+// 5. ORBIT CONTROLS (inline — CDN only provides core three.js)
+// ═══════════════════════════════════════════════════════════
+function setupOrbitEvents(canvas, container) {
+  canvas.addEventListener('mousedown', e => {
+    orbit.dragging = true;
+    orbit.mouseButton = e.button;
+    orbit.lastX = e.clientX;
+    orbit.lastY = e.clientY;
+    autoRotate = false;
+    document.getElementById('ar-tog').classList.remove('on');
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    // Update mouse for raycasting
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    if (!orbit.dragging) return;
+    const dx = e.clientX - orbit.lastX;
+    const dy = e.clientY - orbit.lastY;
+    orbit.lastX = e.clientX;
+    orbit.lastY = e.clientY;
+
+    if (orbit.mouseButton === 0) {
+      // Rotate
+      orbit.spherical.theta -= dx * 0.005;
+      orbit.spherical.phi = Math.max(0.05, Math.min(Math.PI * 0.92, orbit.spherical.phi + dy * 0.005));
+    } else if (orbit.mouseButton === 2) {
+      // Pan
+      const panSpeed = orbit.spherical.radius * 0.001;
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3();
+      right.crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up).normalize();
+      up.copy(camera.up);
+      orbit.target.addScaledVector(right, -dx * panSpeed);
+      orbit.target.addScaledVector(up, dy * panSpeed);
+    }
+    updateCameraFromSpherical();
+  });
+
+  window.addEventListener('mouseup', () => { orbit.dragging = false; orbit.mouseButton = -1; });
+
+  canvas.addEventListener('wheel', e => {
+    orbit.spherical.radius = Math.max(8, Math.min(120, orbit.spherical.radius + e.deltaY * 0.04));
+    updateCameraFromSpherical();
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Touch support
+  let lastTouchDist = 0;
+  let lastTouchX = 0, lastTouchY = 0;
+
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      orbit.dragging = true;
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
+      autoRotate = false;
+    } else if (e.touches.length === 2) {
+      lastTouchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 1 && orbit.dragging) {
+      const dx = e.touches[0].clientX - lastTouchX;
+      const dy = e.touches[0].clientY - lastTouchY;
+      lastTouchX = e.touches[0].clientX;
+      lastTouchY = e.touches[0].clientY;
+      orbit.spherical.theta -= dx * 0.006;
+      orbit.spherical.phi = Math.max(0.05, Math.min(Math.PI * 0.92, orbit.spherical.phi + dy * 0.006));
+      updateCameraFromSpherical();
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      orbit.spherical.radius = Math.max(8, Math.min(120, orbit.spherical.radius * (lastTouchDist / dist)));
+      lastTouchDist = dist;
+      updateCameraFromSpherical();
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => { orbit.dragging = false; });
+
+  // Click detection (only fire if didn't drag)
+  let mouseDownPos = { x: 0, y: 0 };
+  canvas.addEventListener('mousedown', e => { mouseDownPos = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener('mouseup', e => {
+    const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+    if (dist < 5) checkClick();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// 6. OAK TREE LAYOUT
+// ═══════════════════════════════════════════════════════════
+
+// V3 utility: normalise a THREE.Vector3
+function vNorm(v) { return v.clone().normalize(); }
+// Cross product
+function vCross(a, b) { return new THREE.Vector3().crossVectors(a, b); }
+
+// Build a perpendicular spread axis for a branch direction
+// Returns a unit vector perpendicular to branchDir, lying in the horizontal plane
+function spreadAxis(branchDir) {
+  const up = new THREE.Vector3(0, 1, 0);
+  let ax = vCross(branchDir, up);
+  if (ax.lengthSq() < 0.001) ax = vCross(branchDir, new THREE.Vector3(1, 0, 0));
+  return ax.normalize();
+}
+
+// Golden angle (radians) — ensures no two clade branches visually align
+const GOLDEN_ANGLE = 2.39996; // 137.508 degrees in radians
+
+function layoutTree(root) {
+  const Y_UP = new THREE.Vector3(0, 1, 0);
+
+  // ── ROOT at trunk base ──
+  root.pos = new THREE.Vector3(0, 0, 0);
+  // The "trunk top" connection point for each clade differs by height
+  // Trunk runs from Y=0 to Y=26, slight organic lean
+  root.trunkTop = new THREE.Vector3(0.4, 26, -0.3); // lean
+
+  const clades = root.children || [];
+  const nClades = clades.length;
+
+  clades.forEach((clade, ci) => {
+    // ── CLADE ATTACHMENT on trunk ──
+    // Heights spread evenly from Y=4 to Y=22
+    const tY = 4 + ci * (18 / Math.max(nClades - 1, 1));
+    // Tiny trunk lean contribution at this height
+    const trunkX = (tY / 26) * 0.4;
+    const trunkZ = (tY / 26) * -0.3;
+    const attachPt = new THREE.Vector3(trunkX, tY, trunkZ);
+
+    // ── CLADE BRANCH DIRECTION ──
+    // Azimuth uses golden angle spiral — guarantees angular separation
+    const az = ci * GOLDEN_ANGLE;
+    // Elevation pitch: lower clades are more horizontal, upper more upswept
+    const pitch = THREE.MathUtils.lerp(0.18, 0.42, ci / Math.max(nClades - 1, 1));
+    const branchDir = new THREE.Vector3(
+      Math.sin(az),
+      pitch,
+      Math.cos(az)
+    ).normalize();
+
+    // Clade tip: 7 units along branch direction from attachment
+    const cladeTip = attachPt.clone().addScaledVector(branchDir, 7);
+
+    clade.pos = cladeTip;
+    clade.parentPos = attachPt;
+    clade.branchDir = branchDir;
+    clade.attachPt = attachPt;
+
+    const children = clade.children || [];
+    const nKids = children.length;
+    if (!nKids) return;
+
+    // Perpendicular spread axis for this clade
+    const spAxis = spreadAxis(branchDir);
+    // Secondary axis (in-plane, upward component)
+    const secAxis = vCross(spAxis, branchDir).normalize();
+
+    // Separate into sub-branch groups vs direct series
+    const subBranches = children.filter(c => c.type === 'branch');
+    const directSeries = children.filter(c => c.type === 'series');
+
+    // ── DIRECT SERIES off clade tip ──
+    // Laid out along spAxis at fixed 2.8-unit intervals, centered
+    if (directSeries.length) {
+      const spacing = 2.8;
+      const totalSpan = (directSeries.length - 1) * spacing;
+      directSeries.forEach((s, si) => {
+        const offset = -totalSpan / 2 + si * spacing;
+        // Step further along branchDir so they don't overlap clade sphere
+        const tip = cladeTip.clone()
+          .addScaledVector(branchDir, 3.5)
+          .addScaledVector(spAxis, offset)
+          .addScaledVector(secAxis, 0.6); // slight upward lift
+        s.pos = tip;
+        s.parentPos = cladeTip;
+      });
+    }
+
+    // ── SUB-BRANCHES off clade tip ──
+    subBranches.forEach((sub, sbi) => {
+      const nSubs = subBranches.length;
+      // Fan sub-branches across the spread axis
+      const frac = nSubs === 1 ? 0 : (sbi / (nSubs - 1) - 0.5);
+      const fanAngle = Math.PI * 0.45; // ±40.5 degrees
+      const subAngle = frac * fanAngle;
+
+      // Sub-branch direction: rotate branchDir around secAxis by subAngle
+      // then add a bit of the spread axis
+      const subDir = branchDir.clone()
+        .addScaledVector(spAxis, Math.sin(subAngle) * 1.2)
+        .addScaledVector(secAxis, 0.15 + sbi * 0.05)
+        .normalize();
+
+      const subLen = 4.5;
+      const subTip = cladeTip.clone().addScaledVector(subDir, subLen);
+
+      sub.pos = subTip;
+      sub.parentPos = cladeTip;
+      sub.branchDir = subDir;
+
+      // ── SERIES off each sub-branch ──
+      const series = (sub.children || []).filter(c => c.type === 'series');
+      const subSubs = (sub.children || []).filter(c => c.type === 'branch');
+
+      if (series.length) {
+        const subSpAxis = spreadAxis(subDir);
+        const subSecAxis = vCross(subSpAxis, subDir).normalize();
+        const spacing = 2.6;
+        const totalSpan = (series.length - 1) * spacing;
+        series.forEach((leaf, li) => {
+          const offset = -totalSpan / 2 + li * spacing;
+          leaf.pos = subTip.clone()
+            .addScaledVector(subDir, 3.2)
+            .addScaledVector(subSpAxis, offset)
+            .addScaledVector(subSecAxis, 0.4);
+          leaf.parentPos = subTip;
+        });
+      }
+
+      // ── DEEP SUB-BRANCHES (depth-3 branches like "Modern Shonen") ──
+      if (subSubs.length) {
+        const subSpAxis = spreadAxis(subDir);
+        const subSecAxis = vCross(subSpAxis, subDir).normalize();
+        subSubs.forEach((deep, di) => {
+          const nDeep = subSubs.length;
+          const frac2 = nDeep === 1 ? 0 : (di / (nDeep - 1) - 0.5);
+          const deepDir = subDir.clone()
+            .addScaledVector(subSpAxis, frac2 * 0.8)
+            .addScaledVector(subSecAxis, 0.2)
+            .normalize();
+          const deepTip = subTip.clone().addScaledVector(deepDir, 4.0);
+          deep.pos = deepTip;
+          deep.parentPos = subTip;
+          deep.branchDir = deepDir;
+
+          const deepSeries = (deep.children || []).filter(c => c.type === 'series');
+          if (deepSeries.length) {
+            const dSpAxis = spreadAxis(deepDir);
+            const dSecAxis = vCross(dSpAxis, deepDir).normalize();
+            const spacing = 2.5;
+            const totalSpan = (deepSeries.length - 1) * spacing;
+            deepSeries.forEach((leaf, li) => {
+              const offset = -totalSpan / 2 + li * spacing;
+              leaf.pos = deepTip.clone()
+                .addScaledVector(deepDir, 3.0)
+                .addScaledVector(dSpAxis, offset)
+                .addScaledVector(dSecAxis, 0.3);
+              leaf.parentPos = deepTip;
+            });
+          }
+        });
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// 7. GEOMETRY BUILDERS
+// ═══════════════════════════════════════════════════════════
+
+function hexToColor(hex) { return new THREE.Color(hex); }
+
+// Tapered tube using CatmullRomCurve3 with organic mid-bow
+function buildTube(p1, p2, rBase, rTip, color, radSeg = 7) {
+  const mid = p1.clone().lerp(p2, 0.5);
+  // Organic bow: perpendicular offset proportional to branch length
+  const len = p1.distanceTo(p2);
+  const perp = new THREE.Vector3(
+    (Math.random() - 0.5) * len * 0.12,
+    Math.random() * len * 0.06,
+    (Math.random() - 0.5) * len * 0.12
+  );
+  mid.add(perp);
+
+  const curve = new THREE.CatmullRomCurve3([p1, mid, p2]);
+  const tubeSeg = 10;
+  const geo = new THREE.TubeGeometry(curve, tubeSeg, rBase, radSeg, false);
+
+  // Taper verts: scale radial offsets from rBase at t=0 to rTip at t=1
+  const pos = geo.attributes.position;
+  for (let i = 0; i <= tubeSeg; i++) {
+    const t = i / tubeSeg;
+    const r = THREE.MathUtils.lerp(rBase, rTip, t);
+    const scale = rBase > 0 ? r / rBase : 1;
+    const cPt = curve.getPoint(t);
+    for (let j = 0; j <= radSeg; j++) {
+      const idx = i * (radSeg + 1) + j;
+      if (idx >= pos.count) break;
+      pos.setXYZ(idx,
+        cPt.x + (pos.getX(idx) - cPt.x) * scale,
+        cPt.y + (pos.getY(idx) - cPt.y) * scale,
+        cPt.z + (pos.getZ(idx) - cPt.z) * scale
+      );
+    }
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: hexToColor(color), roughness: 0.82, metalness: 0.0
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+// Trunk: a single multi-point CatmullRomCurve3 with tapering
+function buildTrunk() {
+  // Control points give slight organic lean and taper
+  const pts = [
+    new THREE.Vector3(0,    0,    0),
+    new THREE.Vector3(0.1,  4,    0.05),
+    new THREE.Vector3(0.2,  8,   -0.05),
+    new THREE.Vector3(0.3,  13,   0.1),
+    new THREE.Vector3(0.35, 18,  -0.1),
+    new THREE.Vector3(0.4,  22,   0.05),
+    new THREE.Vector3(0.4,  26,  -0.3)
+  ];
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const tubeSeg = 40;
+  const radSeg = 10;
+  const geo = new THREE.TubeGeometry(curve, tubeSeg, 0.9, radSeg, false);
+
+  // Taper from r=0.9 at base to r=0.28 at top
+  const pos = geo.attributes.position;
+  for (let i = 0; i <= tubeSeg; i++) {
+    const t = i / tubeSeg;
+    const r = THREE.MathUtils.lerp(0.9, 0.28, t);
+    const scale = r / 0.9;
+    const cPt = curve.getPoint(t);
+    for (let j = 0; j <= radSeg; j++) {
+      const idx = i * (radSeg + 1) + j;
+      if (idx >= pos.count) break;
+      pos.setXYZ(idx,
+        cPt.x + (pos.getX(idx) - cPt.x) * scale,
+        cPt.y + (pos.getY(idx) - cPt.y) * scale,
+        cPt.z + (pos.getZ(idx) - cPt.z) * scale
+      );
+    }
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x5c3d1e), roughness: 0.92, metalness: 0.0
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+// Label sprite — canvas texture, always faces camera
+function buildLabel(text, color, isBranch) {
+  const W = isBranch ? 280 : 240, H = isBranch ? 44 : 38;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  // Pill background
+  const rx = 7, x0 = 2, y0 = 3, w0 = W - 4, h0 = H - 6;
+  const alpha = isBranch ? 0.88 : 0.78;
+  ctx.fillStyle = `rgba(8,8,16,${alpha})`;
+  ctx.beginPath();
+  ctx.moveTo(x0 + rx, y0);
+  ctx.lineTo(x0 + w0 - rx, y0);
+  ctx.quadraticCurveTo(x0 + w0, y0, x0 + w0, y0 + rx);
+  ctx.lineTo(x0 + w0, y0 + h0 - rx);
+  ctx.quadraticCurveTo(x0 + w0, y0 + h0, x0 + w0 - rx, y0 + h0);
+  ctx.lineTo(x0 + rx, y0 + h0);
+  ctx.quadraticCurveTo(x0, y0 + h0, x0, y0 + h0 - rx);
+  ctx.lineTo(x0, y0 + rx);
+  ctx.quadraticCurveTo(x0, y0, x0 + rx, y0);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = color || '#e8e6f2';
+  ctx.font = `${isBranch ? '600' : '500'} ${isBranch ? 17 : 15}px Inter, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, W / 2, H / 2);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  // Scale: 1 unit ≈ scene unit. Leaf labels: 2.8w × 0.5h. Branch: 3.4w × 0.55h.
+  sprite.scale.set(isBranch ? 3.4 : 2.8, isBranch ? 0.55 : 0.48, 1);
+  return sprite;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 8. TREE BUILDER
+// ═══════════════════════════════════════════════════════════
+
+function filteredTree() {
+  function f(n) {
+    if (!showLost && n.lost) return null;
+    const copy = Object.assign({}, n);
+    if (n.children) {
+      const kids = n.children.map(f).filter(Boolean);
+      copy.children = kids.length ? kids : undefined;
+    }
+    return copy;
+  }
+  return f(TREE);
+}
+
+function isFiltered(node) {
+  if (!activeGenres.size) return false;
+  return node.genres && !node.genres.some(g => activeGenres.has(g));
+}
+
+function clearTree() {
+  nodeObjects.forEach(o => {
+    scene.remove(o.mesh);
+    if (o.glowMesh) scene.remove(o.glowMesh);
+    if (o.label) scene.remove(o.label);
+    if (o.scoreLbl) scene.remove(o.scoreLbl);
+  });
+  branchObjects.forEach(o => scene.remove(o.mesh));
+  // Remove trunk if exists
+  if (clearTree._trunk) { scene.remove(clearTree._trunk); clearTree._trunk = null; }
+  nodeObjects = [];
+  branchObjects = [];
+}
+
+function rebuildTree() {
+  clearTree();
+
+  const root = filteredTree();
+  if (!root) return;
+
+  // ── Trunk geometry ──
+  const trunk = buildTrunk();
+  scene.add(trunk);
+  clearTree._trunk = trunk;
+
+  // ── Assign positions ──
+  layoutTree(root);
+
+  // ── Walk tree and emit geometry ──
+  function build(node, depth) {
+    if (!node.pos) return;
+
+    const col   = node.color || '#888888';
+    const isHL  = highlight.has(node.name);
+    const isDim = isFiltered(node);
+
+    // Branch tube from parent
+    if (node.parentPos) {
+      const depthRadii = [0.38, 0.22, 0.13, 0.07];
+      const inf = node.influence || 0.5;
+      const rBase = Math.max(0.04, depthRadii[Math.min(depth - 1, depthRadii.length - 1)] * (0.55 + inf * 0.7));
+      const rTip  = rBase * 0.5;
+      const tube  = buildTube(node.parentPos, node.pos, rBase, rTip, col, 6);
+      tube.material.opacity = isDim ? 0.07 : 0.82;
+      tube.material.transparent = isDim;
+      scene.add(tube);
+      branchObjects.push({ mesh: tube, data: node });
+    }
+
+    // Node sphere
+    const sR = node.type === 'root'   ? 0.0  // root is the trunk base — no sphere needed
+             : node.type === 'branch' ? Math.max(0.18, (node.influence || 0.5) * 0.32)
+             : 0.13; // series leaf
+
+    if (sR > 0) {
+      const sGeo = new THREE.SphereGeometry(sR, 14, 10);
+      const sMat = new THREE.MeshStandardMaterial({
+        color:            hexToColor(col),
+        emissive:         hexToColor(col),
+        emissiveIntensity: isHL ? 0.75 : node.type === 'series' ? 0.40 : 0.12,
+        roughness:        node.type === 'series' ? 0.25 : 0.65,
+        metalness:        node.type === 'series' ? 0.15 : 0.02,
+        transparent:      isDim,
+        opacity:          isDim ? 0.12 : 1.0
+      });
+      const sphere = new THREE.Mesh(sGeo, sMat);
+      sphere.position.copy(node.pos);
+      scene.add(sphere);
+
+      // Glow halo for highlighted nodes
+      let glowMesh = null;
+      if (isHL) {
+        const gGeo = new THREE.SphereGeometry(sR * 2.6, 12, 10);
+        const gMat = new THREE.MeshBasicMaterial({
+          color: hexToColor(col), transparent: true, opacity: 0.14, depthWrite: false
+        });
+        glowMesh = new THREE.Mesh(gGeo, gMat);
+        glowMesh.position.copy(node.pos);
+        scene.add(glowMesh);
+      }
+
+      // Label — positioned outward from tree center so it doesn't overlay the branch
+      let label = null, scoreLbl = null;
+      if (showLabels) {
+        const raw  = node.name.length > 22 ? node.name.slice(0, 20) + '…' : node.name;
+        const lcol = isDim ? '#363646'
+                   : node.type === 'branch' ? '#e8e4ff'
+                   : '#b4b2cc';
+        const isBr = node.type === 'branch';
+        label = buildLabel(raw, lcol, isBr);
+
+        // Label offset: push outward from trunk center (XZ) + upward
+        const outDir = new THREE.Vector3(node.pos.x, 0, node.pos.z);
+        if (outDir.lengthSq() < 0.01) outDir.set(0, 0, 1);
+        outDir.normalize();
+        const lOffset = sR + (isBr ? 0.9 : 0.65);
+        label.position.set(
+          node.pos.x + outDir.x * lOffset,
+          node.pos.y + sR + (isBr ? 0.55 : 0.42),
+          node.pos.z + outDir.z * lOffset
+        );
+        scene.add(label);
+
+        // Live score badge below leaf
+        if (node.type === 'series' && node.mal_id && liveData[node.mal_id]?.score) {
+          scoreLbl = buildLabel('★' + liveData[node.mal_id].score, '#c9a84c', false);
+          scoreLbl.scale.set(1.5, 0.42, 1);
+          scoreLbl.position.set(node.pos.x, node.pos.y - sR - 0.4, node.pos.z);
+          scene.add(scoreLbl);
+        }
+      }
+
+      nodeObjects.push({ mesh: sphere, glowMesh, label, scoreLbl, data: node });
+    }
+
+    // Recurse into children
+    if (node.children) node.children.forEach(kid => build(kid, depth + 1));
+  }
+
+  build(root, 0);
+  document.getElementById('st-n').textContent =
+    nodeObjects.filter(o => o.data.type === 'series').length;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 9. INTERACTION — raycasting
+// ═══════════════════════════════════════════════════════════
+
+function checkClick() {
+  raycaster.setFromCamera(mouse, camera);
+  const meshes = nodeObjects.map(o => o.mesh);
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (hits.length > 0) {
+    const hit = hits[0].object;
+    const obj = nodeObjects.find(o => o.mesh === hit);
+    if (obj) openPanel(obj.data);
+  } else {
+    closePanel();
+  }
+}
+
+// Hover check — called in animation loop
+let hoverNode = null;
+
+function checkHover() {
+  raycaster.setFromCamera(mouse, camera);
+  const meshes = nodeObjects.map(o => o.mesh);
+  const hits = raycaster.intersectObjects(meshes, false);
+
+  if (hits.length > 0) {
+    const obj = nodeObjects.find(o => o.mesh === hits[0].object);
+    if (obj && obj !== hoverNode) {
+      hoverNode = obj;
+      showTT(obj.data);
+      document.getElementById('c3d').style.cursor = 'pointer';
+    }
+  } else {
+    if (hoverNode) {
+      hoverNode = null;
+      hideTT();
+      document.getElementById('c3d').style.cursor = 'default';
+    }
+  }
+
+  // Pulse hovered sphere
+  nodeObjects.forEach(o => {
+    if (o === hoverNode && !isFiltered(o.data)) {
+      o.mesh.material.emissiveIntensity = 0.9 + Math.sin(Date.now() * 0.004) * 0.15;
+    } else {
+      const isHL = highlight.has(o.data.name);
+      const base = isHL ? 0.7 : o.data.type === 'series' ? 0.35 : 0.15;
+      o.mesh.material.emissiveIntensity = base;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// 10. ANIMATION LOOP
+// ═══════════════════════════════════════════════════════════
+let lastAutoRotate = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (autoRotate && !orbit.dragging) {
+    orbit.spherical.theta += 0.0012;
+    updateCameraFromSpherical();
+  }
+
+  // Labels always face camera
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  nodeObjects.forEach(o => {
+    if (o.label) {
+      o.label.quaternion.copy(camera.quaternion);
+    }
+  });
+
+  checkHover();
+  renderer.render(scene, camera);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 11. TOOLTIP
+// ═══════════════════════════════════════════════════════════
+function showTT(d) {
+  const tt = document.getElementById('tt');
+  document.getElementById('tt1').textContent = d.name;
+  document.getElementById('tt2').textContent = [d.year, d.studio].filter(Boolean).join(' · ');
+  document.getElementById('tt3').textContent = (d.desc || '').slice(0, 90) + (d.desc && d.desc.length > 90 ? '…' : '');
+  tt.classList.add('on');
+}
+function hideTT() { document.getElementById('tt').classList.remove('on'); }
+
+document.getElementById('c3d').addEventListener('mousemove', e => {
+  const tt = document.getElementById('tt');
+  let x = e.clientX + 14, y = e.clientY - 12;
+  if (x + 215 > window.innerWidth) x = e.clientX - 220;
+  if (y + 110 > window.innerHeight) y = e.clientY - 115;
+  tt.style.left = x + 'px';
+  tt.style.top = y + 'px';
+});
+
+// ═══════════════════════════════════════════════════════════
+// 12. DETAIL PANEL
+// ═══════════════════════════════════════════════════════════
+const RECS = {
+  30:[{t:'RahXephon',y:2002,w:"EVA's philosophical twin — amnesia, music, gods reshaping reality.",tp:'🧬 Cousin',c:'#2ac9a8',m:534},
+      {t:'Bokurano',y:2007,w:'Children pilot a mecha that kills them. Even darker than EVA.',tp:'🦋 Mutation',c:'#7b2ac9',m:887},
+      {t:'Gunbuster',y:1988,w:"Anno's OVA predecessor. The seed of Evangelion.",tp:'👴 Ancestor',c:'#8ec92a',m:2871}],
+  16498:[{t:'Vinland Saga',y:2019,w:'War, revenge, pacifism. Made by WIT. Thematic twin.',tp:'🧬 Cousin',c:'#7b2ac9',m:37521},
+         {t:'From the New World',y:2012,w:'Secret dystopia, psychic children. Same horror-society DNA.',tp:'👴 Ancestor',c:'#7b2ac9',m:14017}],
+  43:[{t:'Serial Experiments Lain',y:1998,w:'Identity dissolving into the network. Quieter, weirder.',tp:'🧬 Cousin',c:'#2ac9a8',m:339},
+      {t:'Ergo Proxy',y:2006,w:"Post-apocalypse philosophy noir. GitS's moody heir.",tp:'🦋 Mutation',c:'#2a7bc9',m:790}],
+  1:[{t:'Trigun',y:1998,w:'Same era, same tonal DNA — humour hiding devastation.',tp:'🧬 Cousin',c:'#2ac9a8',m:6},
+     {t:'Samurai Champloo',y:2004,w:"Watanabe's spiritual sequel. Anachronistic music, wanderers.",tp:'🦋 Mutation',c:'#2a7bc9',m:205}],
+  199:[{t:"Howl's Moving Castle",y:2004,w:'Same studio, same magic-realism, anti-war romance.',tp:'🧬 Cousin',c:'#2a7bc9',m:431},
+       {t:'Wolf Children',y:2012,w:"The Ghibli heir. Motherhood and belonging.",tp:'🦋 Mutation',c:'#7b2ac9',m:13245}],
+  9253:[{t:'Re:Zero',y:2016,w:'Death loops and psychological despair in a different genre.',tp:'🧬 Cousin',c:'#7b2ac9',m:31240},
+        {t:'Erased',y:2016,w:'Time-reversal mystery. Perfect 12 episodes.',tp:'💎 Hidden gem',c:'#7b2ac9',m:31043}],
+  20583:[{t:'Ping Pong the Animation',y:2014,w:'Sports as self-philosophy. The artistic ceiling.',tp:'🎨 Singular',c:'#7b2ac9',m:20517},
+         {t:'Slam Dunk',y:1993,w:'The blueprint. Basketball that made a generation play.',tp:'👴 Ancestor',c:'#2ac9a8',m:1710}],
+  52991:[{t:'Mushishi',y:2005,w:'Episodic folklore, quiet magic. Contemplative perfection.',tp:'👴 Ancestor',c:'#8ec92a',m:457},
+         {t:'Spice and Wolf',y:2008,w:'Wandering companions, economics, gentle chemistry.',tp:'🧬 Cousin',c:'#2a7bc9',m:2966}]
+};
+
+async function openPanel(d) {
+  const era = eraOf(d.year), col = eraCol(d.year);
+  const eb = document.getElementById('pera');
+  eb.textContent = era;
+  eb.style.cssText = `background:${col}1e;color:${col};border:1px solid ${col}40;`;
+  document.getElementById('ptitle').textContent = d.name;
+  document.getElementById('pmeta').textContent = [d.year, d.studio, d.genres?.join(' · ')].filter(Boolean).join(' · ');
+
+  const sc = document.getElementById('pscore');
+  const live = d.mal_id ? liveData[d.mal_id] : null;
+  if (live?.score) {
+    sc.style.display = 'flex';
+    sc.textContent = '★ ' + live.score + ' / 10  ·  ' + (live.members || 0).toLocaleString() + ' members';
+  } else sc.style.display = 'none';
+
+  const body = document.getElementById('pbody');
+  body.innerHTML = '';
+
+  if (d.desc) {
+    const el = document.createElement('div');
+    el.innerHTML = `<div class="psec">Overview</div><div class="pdesc">${d.desc}</div>`;
+    body.appendChild(el);
+  }
+
+  if (d.type === 'series' && d.mal_id) {
+    const el = document.createElement('div');
+    el.innerHTML = `<div class="psec">Live Data · <span style="color:var(--accent3)">Jikan API</span></div>
+      <div id="lv" class="livecard"><div style="font-size:10px;color:var(--muted);padding:8px;text-align:center">
+      <span class="lspin"></span>Fetching…</div></div>`;
+    body.appendChild(el);
+    loadLive(d.mal_id, el.querySelector('#lv'));
+  }
+
+  if (d.mutation) {
+    const el = document.createElement('div');
+    el.innerHTML = `<div class="psec">Key Mutation</div>
+      <div class="mut-card"><div class="mut-lbl">⚡ Evolutionary Event</div>${d.mutation}</div>`;
+    body.appendChild(el);
+  }
+
+  if (d.genres?.length) {
+    const el = document.createElement('div');
+    el.innerHTML = `<div class="psec">DNA / Themes</div>
+      <div class="tchips">${d.genres.map(g => `<div class="tchip">${g}</div>`).join('')}</div>`;
+    body.appendChild(el);
+  }
+
+  const recs = d.mal_id && RECS[d.mal_id] ? RECS[d.mal_id]
+    : [{t:'Fullmetal Alchemist: Brotherhood',y:2009,w:"The benchmark.",tp:'⭐ Essential',c:'#c9882a',m:5114},
+       {t:'Mushishi',y:2005,w:'Episodic folklore perfected.',tp:'💎 Hidden gem',c:'#8ec92a',m:457}];
+  if (recs.length) {
+    const el = document.createElement('div');
+    el.innerHTML = `<div class="psec">Explore This Clade</div><div class="recs" id="rl"></div>`;
+    body.appendChild(el);
+    const rl = el.querySelector('#rl');
+    recs.forEach(r => {
+      const c = document.createElement('a');
+      c.className = 'rec'; c.href = `https://myanimelist.net/anime/${r.m}`; c.target = '_blank';
+      c.innerHTML = `<div class="rdot" style="background:${r.c}"></div>
+        <div class="rinfo"><div class="rtitle">${r.t}</div><div class="rwhy">${r.w}</div>
+        <div class="rtype">${r.tp}</div></div><div class="rytag">${r.y}</div>`;
+      rl.appendChild(c);
+    });
+  }
+
+  const links = [];
+  if (d.mal_id) links.push({ i: '🔗', l: 'MyAnimeList', u: `https://myanimelist.net/anime/${d.mal_id}` });
+  links.push({ i: '◈', l: 'AniList Search', u: `https://anilist.co/search/anime?search=${encodeURIComponent(d.name)}` });
+  links.push({ i: '▶', l: 'Trailer on YouTube', u: `https://www.youtube.com/results?search_query=${encodeURIComponent(d.name + ' anime trailer')}` });
+  const linksEl = document.createElement('div');
+  linksEl.innerHTML = `<div class="psec">Links</div>
+    <div class="elinks">${links.map(l => `<a class="elink" href="${l.u}" target="_blank">
+      <span style="font-size:13px">${l.i}</span>${l.l}</a>`).join('')}</div>`;
+  body.appendChild(linksEl);
+
+  document.getElementById('panel').classList.add('open');
+
+  // Enrich live data and re-add score badge to 3D if needed
+  if (d.mal_id && !liveData[d.mal_id]) {
+    await enrich(d.mal_id);
+    rebuildTree();
+  }
+}
+
+async function loadLive(id, el) {
+  try {
+    await enrich(id);
+    const d = liveData[id];
+    if (!d) {
+      el.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px;text-align:center">Not found on MyAnimeList</div>';
+      return;
+    }
+
+    // Poster image — fade in once loaded
+    const posterUrl = d.images?.jpg?.large_image_url || d.images?.jpg?.image_url || '';
+    const posterHTML = posterUrl
+      ? `<div class="poster-wrap">
+           <div class="poster-placeholder">Loading…</div>
+           <img class="loading" src="${posterUrl}" alt="${d.title || ''}"
+             onload="this.classList.remove('loading');this.classList.add('loaded');this.previousElementSibling.style.display='none'"
+             onerror="this.parentElement.style.display='none'">
+         </div>`
+      : '';
+
+    el.innerHTML = `
+      ${posterHTML}
+      <div class="lrow"><span class="llbl">Score</span><span class="lval">★ ${d.score || '—'} / 10</span></div>
+      <div class="lrow"><span class="llbl">Members</span><span class="lval">${(d.members || 0).toLocaleString()}</span></div>
+      <div class="lrow"><span class="llbl">Episodes</span><span class="lval">${d.episodes || d.type || '—'}</span></div>
+      <div class="lrow"><span class="llbl">Status</span><span class="lval">${d.status || '—'}</span></div>
+      <div class="lrow"><span class="llbl">Studio</span><span class="lval">${d.studios?.map(s => s.name).join(', ') || '—'}</span></div>`;
+  } catch (e) {
+    const is429 = e.message === '429';
+    el.innerHTML = `<div style="font-size:10px;padding:6px;text-align:center;color:var(--muted)">
+      ${is429 ? '⏱ API rate limit — retry in a moment' : 'Live data unavailable'}</div>`;
+    if (is429) {
+      setTimeout(async () => {
+        delete liveData[id];
+        el.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px;text-align:center"><span class="lspin"></span>Retrying…</div>';
+        await loadLive(id, el);
+      }, 2000);
+    }
+  }
+}
+
+function closePanel() { document.getElementById('panel').classList.remove('open'); }
+
+// ═══════════════════════════════════════════════════════════
+// 13. SEARCH
+// ═══════════════════════════════════════════════════════════
+let allSeries = [];
+let searchResults = []; // current result set, indexed by position
+
+function buildIdx() {
+  allSeries = [];
+  function w(n) { if (n.type === 'series') allSeries.push(n); if (n.children) n.children.forEach(w); }
+  w(TREE);
+}
+function onSearch(q) {
+  const sr = document.getElementById('sr');
+  if (!q.trim()) { sr.classList.remove('open'); searchResults = []; return; }
+  const lq = q.toLowerCase();
+  searchResults = allSeries.filter(s =>
+    (s.name || '').toLowerCase().includes(lq) ||
+    (s.desc || '').toLowerCase().includes(lq) ||
+    (s.studio || '').toLowerCase().includes(lq) ||
+    (s.genres || []).some(g => g.toLowerCase().includes(lq))
+  ).slice(0, 10);
+  if (!searchResults.length) { sr.classList.remove('open'); return; }
+  sr.innerHTML = searchResults.map((s, i) => `<div class="sr-item" onclick="jumpTo(${i})">
+    <div class="sr-dot" style="background:${s.color}"></div>
+    <div><div class="sr-nm">${s.name}</div><div class="sr-meta">${s.year}${s.studio ? ' · ' + s.studio : ''}</div></div>
+  </div>`).join('');
+  sr.classList.add('open');
+}
+function jumpTo(idx) {
+  document.getElementById('sr').classList.remove('open');
+  const found = searchResults[idx];
+  if (found) openPanel(found);
+}
+document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) document.getElementById('sr').classList.remove('open'); });
+
+// ═══════════════════════════════════════════════════════════
+// 14. SIDEBAR CONTROLS
+// ═══════════════════════════════════════════════════════════
+const GENRES_UI = ['Action','Mecha','Psychological','Sci-Fi','Cyberpunk','Fantasy',
+                   'Romance','Slice-of-Life','Isekai','Sports','Horror','Drama'];
+
+function buildSidebar() {
+  const counts = {};
+  function cnt(n) { if (n.type === 'series') { const e = eraOf(n.year); counts[e] = (counts[e] || 0) + 1; } if (n.children) n.children.forEach(cnt); }
+  cnt(TREE);
+
+  const el = document.getElementById('era-list');
+  ERA_CFG.forEach(ec => {
+    const div = document.createElement('div');
+    div.className = 'era-row';
+    div.innerHTML = `<div class="era-dot" style="background:${ec.c}"></div>
+      <span class="era-nm">${ec.e}</span><span class="era-ct">${counts[ec.e] || 0}</span>`;
+    div.onclick = () => { /* visual only for now */ div.classList.toggle('on'); };
+    el.appendChild(div);
+  });
+
+  const gc = document.getElementById('gpills');
+  GENRES_UI.forEach(g => {
+    const b = document.createElement('button');
+    b.className = 'gpill'; b.textContent = g;
+    b.onclick = () => {
+      b.classList.toggle('on');
+      if (activeGenres.has(g)) activeGenres.delete(g); else activeGenres.add(g);
+      rebuildTree();
+    };
+    gc.appendChild(b);
+  });
+
+  // Hybrid selects
+  const HG = ['Mecha','Psychological','Cyberpunk','Romance','Isekai','Sports','Fantasy','Slice-of-Life','Action','Drama','Horror','Sci-Fi'];
+  ['ha', 'hb'].forEach((id, i) => {
+    const s = document.getElementById(id);
+    HG.forEach((g, j) => {
+      const o = document.createElement('option'); o.value = g; o.textContent = g;
+      if (j === i * 4) o.selected = true;
+      s.appendChild(o);
+    });
+  });
+}
+
+let sidebarGone = false;
+function toggleSidebar() {
+  sidebarGone = !sidebarGone;
+  document.getElementById('sidebar').classList.toggle('gone', sidebarGone);
+  const btn = document.getElementById('sb-btn');
+  btn.textContent = sidebarGone ? '›' : '‹';
+  btn.classList.toggle('gone', sidebarGone);
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  const btn = document.getElementById('lbl-btn');
+  btn.textContent = showLabels ? 'Labels On' : 'Labels Off';
+  btn.classList.toggle('on', showLabels);
+  rebuildTree();
+}
+
+function toggleLost() {
+  showLost = !showLost;
+  const btn = document.getElementById('lost-btn');
+  btn.classList.toggle('on', showLost);
+  rebuildTree();
+}
+
+function toggleAutoRotate() {
+  autoRotate = !autoRotate;
+  document.getElementById('ar-tog').classList.toggle('on', autoRotate);
+}
+
+function resetView() {
+  orbit.spherical = { theta: 0.4, phi: Math.PI / 2.4, radius: 62 };
+  orbit.target.set(0, 13, 0);
+  updateCameraFromSpherical();
+  autoRotate = true;
+  document.getElementById('ar-tog').classList.add('on');
+}
+
+// ═══════════════════════════════════════════════════════════
+// 15. HYBRID MODAL
+// ═══════════════════════════════════════════════════════════
+const HDB = {
+  'Mecha+Psychological': { t: 'Existential Giant Robot', d: 'Metal behemoths as exosuits for the fractured mind.', a: [{t:'Neon Genesis Evangelion',m:30},{t:'Darling in the FranXX',m:35849},{t:'86 Eighty-Six',m:41457}] },
+  'Cyberpunk+Romance':   { t: 'Neon Love & Data Loss', d: 'Love surviving system crashes and corporate dystopias.', a: [{t:'Chobits',m:59},{t:"Vivy: Fluorite Eye's Song",m:46095},{t:'Armitage III',m:698}] },
+  'Isekai+Psychological':{ t: 'Reality Dissolution Fantasy', d: "The other world as metaphor for the mind's darkest dungeons.", a: [{t:'Re:Zero',m:31240},{t:'Made in Abyss',m:34599},{t:'Grimgar',m:33537}] },
+  'Sports+Psychological':{ t: 'Mindgame Athletics', d: 'Every match is chess played with muscles and existential doubt.', a: [{t:'Haikyuu!!',m:20583},{t:'Ping Pong the Animation',m:20517},{t:'Blue Lock',m:49596}] },
+  'Fantasy+Slice-of-Life':{ t: 'The Cozy Otherworld', d: 'Magic exists but the real drama is Tuesday morning.', a: [{t:"Frieren: Beyond Journey's End",m:52991},{t:'Spice and Wolf',m:2966},{t:"Ancient Magus' Bride",m:35062}] },
+  'Action+Drama':        { t: 'Grief in Motion', d: 'Every punch lands heavier because you know the backstory.', a: [{t:'Fullmetal Alchemist: Brotherhood',m:5114},{t:'Vinland Saga',m:37521},{t:'Samurai Champloo',m:205}] },
+  'Mecha+Romance':       { t: 'Love Inside the Cockpit', d: 'Pair-piloting as metaphor — vulnerability as prerequisite for power.', a: [{t:'Macross: Do You Remember Love?',m:2131},{t:'Darling in the FranXX',m:35849},{t:'Full Metal Panic!',m:201}] },
+  'Horror+Fantasy':      { t: 'Dark Wonderland', d: 'Magic systems that demand horrific prices. Beauty and terror inseparable.', a: [{t:'Made in Abyss',m:34599},{t:'Goblin Slayer',m:37348},{t:'Claymore',m:2039}] },
+};
+
+function openHybrid() { document.getElementById('hmodal').classList.add('open'); }
+function closeHybrid() { document.getElementById('hmodal').classList.remove('open'); document.getElementById('hout').innerHTML = ''; }
+function computeHybrid() {
+  const a = document.getElementById('ha').value, b = document.getElementById('hb').value;
+  if (a === b) { document.getElementById('hout').innerHTML = '<p style="font-size:11px;color:var(--muted)">Pick two different genres.</p>'; return; }
+  const r = HDB[a + '+' + b] || HDB[b + '+' + a] || { t: `${a} × ${b} Splice`, d: `Anime blending ${a} and ${b}.`, a: [{t:'Fullmetal Alchemist: Brotherhood',m:5114}] };
+  document.getElementById('hout').innerHTML = `<div class="hbox">
+    <div class="htitle">⚡ ${r.t}</div><div class="hdesc">${r.d}</div>
+    <div class="hlinks">${r.a.map(x => `<a class="hlink" href="https://myanimelist.net/anime/${x.m}" target="_blank">↗ ${x.t}</a>`).join('')}</div>
+  </div>`;
+}
+document.getElementById('hmodal').addEventListener('click', e => { if (e.target === document.getElementById('hmodal')) closeHybrid(); });
+
+// ═══════════════════════════════════════════════════════════
+// 16. EXPORT
+// ═══════════════════════════════════════════════════════════
+
+function openExport() {
+  document.getElementById('export-modal').classList.add('open');
+  document.getElementById('exp-status').textContent = '';
+}
+function closeExport() {
+  document.getElementById('export-modal').classList.remove('open');
+}
+document.getElementById('export-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('export-modal')) closeExport();
+});
+
+function updateExportPreview() {
+  // Visual feedback: dim the lineage option if nothing is highlighted
+  const hlMode = document.querySelector('input[name="exp-mode"][value="highlight"]');
+  const hlLabel = document.getElementById('mode-hl-lbl');
+  const hasHL = highlight.size > 0;
+  hlLabel.style.opacity = hasHL ? '1' : '0.4';
+  if (!hasHL && hlMode.checked) {
+    document.querySelector('input[name="exp-mode"][value="full"]').checked = true;
+  }
+  const st = document.getElementById('exp-status');
+  if (!hasHL) st.textContent = 'Load a MAL profile or use Quick Personalize to enable lineage mode.';
+  else st.textContent = '';
+}
+
+// Draw the metadata overlay onto a 2D canvas context
+function drawOverlay(ctx, W, H, scale, mode) {
+  // Vignette — subtle dark border
+  const vig = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H*0.85);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  const pad = 22 * scale;
+  const fs = scale; // font scale multiplier
+
+  // Top-left: logotype
+  ctx.font = `700 ${22 * fs}px Cinzel, serif`;
+  ctx.fillStyle = '#c9a84c';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('AnimePhylogeny', pad, pad);
+
+  ctx.font = `400 ${11 * fs}px Inter, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText('3D Tree of Life', pad, pad + 28 * fs);
+
+  if (mode === 'highlight' && highlight.size > 0) {
+    ctx.font = `500 ${11 * fs}px Inter, sans-serif`;
+    ctx.fillStyle = 'rgba(123,111,207,0.85)';
+    ctx.fillText('✦ Personal Lineage · ' + highlight.size + ' highlighted', pad, pad + 46 * fs);
+  }
+
+  // Bottom-left: era colour legend
+  const legendY = H - pad - ERA_CFG.length * 18 * fs;
+  ERA_CFG.forEach((ec, i) => {
+    const y = legendY + i * 18 * fs;
+    ctx.beginPath();
+    ctx.arc(pad + 5 * fs, y + 6 * fs, 4 * fs, 0, Math.PI * 2);
+    ctx.fillStyle = ec.c;
+    ctx.fill();
+    ctx.font = `400 ${10 * fs}px Inter, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.textAlign = 'left';
+    ctx.fillText(ec.e, pad + 14 * fs, y + 2 * fs);
+  });
+
+  // Bottom-right: series count + date
+  const seriesCount = nodeObjects.filter(o => o.data.type === 'series').length;
+  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  ctx.textAlign = 'right';
+  ctx.font = `500 ${12 * fs}px Inter, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.fillText(seriesCount + ' series', W - pad, H - pad - 18 * fs);
+  ctx.font = `400 ${10 * fs}px Inter, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillText(dateStr, W - pad, H - pad);
+}
+
+async function doExport() {
+  const btn = document.getElementById('exp-btn');
+  const status = document.getElementById('exp-status');
+  const mode = document.querySelector('input[name="exp-mode"]:checked').value;
+  const resScale = parseInt(document.querySelector('input[name="exp-res"]:checked').value);
+  const withOverlay = document.getElementById('exp-overlay').checked;
+
+  // Guard: lineage mode requires highlights
+  if (mode === 'highlight' && highlight.size === 0) {
+    status.textContent = 'No lineage to export — add highlights first.';
+    return;
+  }
+
+  btn.textContent = 'Rendering…';
+  btn.disabled = true;
+  status.textContent = '';
+
+  try {
+    const container = document.getElementById('main');
+    const baseW = container.clientWidth;
+    const baseH = container.clientHeight;
+    const W = baseW * resScale;
+    const H = baseH * resScale;
+
+    // ── If hi-res: resize renderer, render, then restore ──
+    if (resScale > 1) {
+      renderer.setSize(W, H);
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+    }
+
+    // ── Lineage mode: temporarily boost highlighted, dim rest ──
+    let savedIntensities = [];
+    if (mode === 'highlight' && highlight.size > 0) {
+      nodeObjects.forEach(o => {
+        savedIntensities.push(o.mesh.material.emissiveIntensity);
+        const isHL = highlight.has(o.data.name);
+        o.mesh.material.emissiveIntensity = isHL ? 1.0 : 0.02;
+        o.mesh.material.opacity = isHL ? 1.0 : 0.08;
+        o.mesh.material.transparent = !isHL;
+      });
+      branchObjects.forEach(o => {
+        const parentHL = highlight.has(o.data.name);
+        o.mesh.material.opacity = parentHL ? 0.85 : 0.05;
+        o.mesh.material.transparent = !parentHL;
+      });
+    }
+
+    // Force a clean render into the WebGL buffer
+    renderer.render(scene, camera);
+
+    // ── Composite onto 2D canvas ──
+    const out = document.createElement('canvas');
+    out.width = W;
+    out.height = H;
+    const ctx = out.getContext('2d');
+
+    // Draw the WebGL canvas
+    ctx.drawImage(renderer.domElement, 0, 0, W, H);
+
+    // Draw overlay if requested
+    if (withOverlay) drawOverlay(ctx, W, H, resScale, mode);
+
+    // ── Restore lineage state ──
+    if (mode === 'highlight' && savedIntensities.length) {
+      nodeObjects.forEach((o, i) => {
+        o.mesh.material.emissiveIntensity = savedIntensities[i];
+        o.mesh.material.opacity = 1.0;
+        o.mesh.material.transparent = false;
+      });
+      branchObjects.forEach(o => {
+        o.mesh.material.opacity = 0.82;
+        o.mesh.material.transparent = false;
+      });
+      renderer.render(scene, camera); // restore visual
+    }
+
+    // ── Restore hi-res renderer size ──
+    if (resScale > 1) {
+      renderer.setSize(baseW, baseH);
+      camera.aspect = baseW / baseH;
+      camera.updateProjectionMatrix();
+    }
+
+    // ── Trigger download ──
+    const filename = mode === 'highlight'
+      ? 'animephylogeny-lineage.png'
+      : 'animephylogeny-tree.png';
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = out.toDataURL('image/png');
+    link.click();
+
+    status.textContent = '✓ Downloaded ' + filename;
+
+  } catch (err) {
+    status.textContent = 'Export failed: ' + err.message;
+    console.error('Export error:', err);
+  } finally {
+    btn.textContent = '↓ Download PNG';
+    btn.disabled = false;
+  }
+}
+
+
+const LMSGS = [
+  'Planting the root node…',
+  'Growing branch geometry…',
+  'Carving the trunk…',
+  'Placing leaf nodes…',
+  'Connecting to Jikan API…',
+  'Lighting the scene…',
+  'Tree is alive ✓'
+];
+
+async function init() {
+  // Loading bars
+  const bars = document.getElementById('ld-bars');
+  ERA_CFG.forEach((ec, i) => {
+    const b = document.createElement('div');
+    b.className = 'ld-b';
+    b.style.cssText = `background:${ec.c};animation-delay:${i * 0.11}s`;
+    bars.appendChild(b);
+  });
+
+  const prog = document.getElementById('ld-fill');
+  const msg = document.getElementById('ld-msg');
+  const sp = (p, m) => { prog.style.width = p + '%'; if (m) msg.textContent = m; };
+
+  sp(8, LMSGS[0]);
+  buildSidebar();
+  buildIdx();
+
+  sp(22, LMSGS[1]);
+  initThree();
+
+  sp(50, LMSGS[3]);
+  rebuildTree();
+
+  sp(68, LMSGS[4]);
+  testAPI().then(ok => {
+    if (ok) {
+      // Enrich top series quietly in background
+      const topIds = [30, 47, 164, 199, 523, 1535, 5114, 9253, 16498, 20583, 38000, 52991];
+      (async () => {
+        for (const id of topIds) {
+          await enrich(id);
+          rebuildTree();
+          await new Promise(r => setTimeout(r, 400));
+        }
+      })();
+    }
+  });
+
+  sp(88, LMSGS[5]);
+  animate();
+
+  await new Promise(r => setTimeout(r, 400));
+  sp(100, LMSGS[6]);
+  await new Promise(r => setTimeout(r, 500));
+
+  const ld = document.getElementById('loading');
+  ld.classList.add('out');
+  setTimeout(() => ld.remove(), 850);
+}
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
